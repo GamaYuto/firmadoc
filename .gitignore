@@ -1,0 +1,60 @@
+# Variables de entorno
+.env
+*.env
+!.env.example
+
+# Entornos virtuales
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Pruebas y cobertura
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+pytest-report.xml
+
+# Base de datos local
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporales
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+~$*
+temp/
+tmp/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Sistema operativo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Archivos locales generados
+file_tree_firmadoc.md
+
+# Frontend futuro
+node_modules/
+dist/
+build/

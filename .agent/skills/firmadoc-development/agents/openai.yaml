@@ -1,0 +1,4 @@
+interface:
+  display_name: "FirmaDoc Development"
+  short_description: "Desarrollo controlado e integración de FirmaDoc con Alfresco"
+  default_prompt: "Trabaja sobre FirmaDoc respetando su arquitectura, alcance, seguridad, versionado y reglas de base de datos. Inspecciona antes de modificar y valida cada cambio."

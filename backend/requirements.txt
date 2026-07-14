@@ -1,0 +1,11 @@
+fastapi>=0.100
+uvicorn[standard]
+sqlalchemy>=2.0
+psycopg[binary]
+alembic
+pydantic>=2.0
+pydantic-settings
+pytest
+httpx
+python-dotenv
+respx
