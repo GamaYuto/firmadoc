@@ -15,7 +15,8 @@ FirmaDoc es una aplicación web independiente e integrada con Alfresco. Debe per
 2. Leer solo las referencias aplicables:
    - Arquitectura y alcance: `references/architecture.md`.
    - API y versionado de Alfresco: `references/alfresco-integration.md`.
-   - Modelo y nombres de base de datos: `references/database-rules.md`.
+   - Modelo y nombres de base de datos genéricos: `references/database-rules.md`.
+   - Esquema físico, entidades, restricciones y ORM: `references/data-model-v1.md` (Solo cuando la tarea involucre modelos ORM, Alembic, Pydantic, consultas, transacciones, workflow, firma o publicación).
    - Seguridad, integridad y auditoría: `references/security-rules.md`.
    - Flujos, participantes, firmas y publicación: `references/signature-architecture.md` (Solo cuando la tarea involucre firmantes, participantes, flujos, pasos, firmas, evidencias, generación final de PDF o publicación en Alfresco).
    - Forma de inspeccionar, implementar y validar: `references/development-workflow.md`.

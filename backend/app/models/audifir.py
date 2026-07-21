@@ -19,7 +19,7 @@ class Audifir(Base):
     __table_args__ = (
         CheckConstraint("evento != ''", name='ck_audifir_evento_empty'),
         CheckConstraint("usrid != ''", name='ck_audifir_usrid_empty'),
-        CheckConstraint("enttip IN ('DOCUMENTO', 'PLANTILLA', 'CAMPO', 'SISTEMA')", name='ck_audifir_enttip'),
+        CheckConstraint("enttip IN ('DOCUMENTO', 'PLANTILLA', 'CAMPO', 'SISTEMA', 'FLUJODOC', 'FLUPASO', 'PASO')", name='ck_audifir_enttip'),
     )
 
     documento = relationship("DocFir")

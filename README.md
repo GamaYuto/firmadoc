@@ -3,18 +3,22 @@
 ## Descripción
 FirmaDoc es una aplicación web independiente diseñada para el uso institucional. Su propósito es permitir preparar, diligenciar, revisar, aprobar y firmar documentos PDF aplicables a procesos clínicos, administrativos, jurídicos y corporativos. Se integra de forma completamente desacoplada con Alfresco ACS Community 26.1, manteniendo el repositorio documental externo intacto hasta el final del flujo.
 
-## Estado actual
-El proyecto actualmente cuenta con:
-- Backend desarrollado en FastAPI.
-- Persistencia mediante PostgreSQL.
-- ORM utilizando SQLAlchemy 2.
-- Gestión de base de datos con Alembic.
-- Integración con Alfresco en modo de solo lectura.
-- Registro del modelo documental en base de datos (`docfir`).
-- Módulo de auditoría de eventos y operaciones (`audifir`).
+## Estado Actual (V1 - Fase 1 ORM)
+El backend implementa los modelos base y las definiciones físicas de la base de datos (PostgreSQL + SQLAlchemy + Alembic).
+
+### Modelos Centrales
+- **docfir**: Instancia maestra del proceso documental. Gestiona el ciclo de vida y hashes.
+- **flujodoc** y **flupaso**: Definición abstracta, versionada e inmutable de los procesos lógicos y sus pasos (secuenciales). **Nota:** el motor de ejecución todavía no está implementado.
+- **plantill** y **tplcamp**: Definición versionada de plantillas documentales con sus campos posicionales `(posx, posy, ancho, alto)`.
+- **audifir**: Trazabilidad técnica inmutable de eventos (`FLU_CREA`, `DOC_CREA`, etc.).
+
+**En desarrollo (no implementado aún):**
+- Asignación de participantes (`docpart`).
+- Captura de firma electrónica y evidencias (`docfirma`, `docevid`).
+- Publicación idempotente hacia Alfresco (`docpubl`).
 - Gestor de plantillas documentales (`plantill`).
 - Definición y configuración de campos posicionados (`tplcamp`).
-- Una suite con exactamente 75 pruebas automatizadas que cubren las operaciones mencionadas.
+- Una suite con exactamente 105 pruebas automatizadas que cubren las operaciones mencionadas.
 
 ## Arquitectura
 - **Repositorio Oficial**: Alfresco es el repositorio documental oficial del sistema.
@@ -236,12 +240,14 @@ python -m pytest --collect-only -q
 python -m pytest -v
 ```
 Se reportan los siguientes totales comprobados:
-- **Total exacto de pruebas:** 75
+- **Total exacto de pruebas:** 105
 - `test_alfresco.py`: 17 pruebas
 - `test_audit.py`: 4 pruebas
 - `test_documentos.py`: 17 pruebas
 - `test_health.py`: 1 prueba
 - `test_plantillas.py`: 36 pruebas
+- `test_flujos.py`: 18 pruebas
+- `test_docpaso.py`: 12 pruebas
 - **Warnings:** Se emite un warning literal conocido de la librería FastAPI: `StarletteDeprecationWarning: Using 'httpx' with 'starlette.testclient' is deprecated; install 'httpx2' instead.`.
 
 ## Limitaciones actuales
@@ -258,8 +264,9 @@ Se reportan los siguientes totales comprobados:
 ## Próximas fases
 - Diseño y construcción de la arquitectura documental de firma.
 - Implementación del flujo de firmas, pasos, participantes y firmantes.
-- Soporte para evidencias de auditoría avanzadas.
-- Construcción del editor visual frontend.
-- Captura de firma manuscrita.
-- Generación del PDF final sellado y firmado.
+- Soporte para evidencias de audito- Crear una plantilla base.
+- Configurar campos.
+- Crear definición de flujo (en memoria/schema, sin ejecución).
+- Crear un borrador `docfir`.
+- (Próximamente: iniciar flujo, notificar a participantes, recolectar firmas y publicar). del PDF final sellado y firmado.
 - Publicación de documentos firmados como nueva versión en Alfresco.

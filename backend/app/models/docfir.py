@@ -1,18 +1,28 @@
-from sqlalchemy import BigInteger, Column, String, Text, DateTime, Boolean, CheckConstraint, Index
+from sqlalchemy import BigInteger, Column, String, Text, DateTime, Boolean, CheckConstraint, Index, ForeignKey
+from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.sql import func
 from app.core.database import Base
 from enum import Enum
+from typing import List
 
 class EstadoDoc(str, Enum):
     BORRADOR = "BORRADOR"
-    PENDIENTE = "PENDIENTE"
+    PREPARADO = "PREPARADO"
+    EN_CURSO = "EN_CURSO"
+    PENDIENTE_FIRMA = "PENDIENTE_FIRMA"
+    FIRMADO_PARCIAL = "FIRMADO_PARCIAL"
+    PENDIENTE_PUBLICACION = "PENDIENTE_PUBLICACION"
+    COMPLETADO = "COMPLETADO"
+    RECHAZADO = "RECHAZADO"
     CANCELADO = "CANCELADO"
-    ERROR = "ERROR"
+    ERROR_PUBLICACION = "ERROR_PUBLICACION"
 
 class DocFir(Base):
     __tablename__ = 'docfir'
 
     docid = Column(BigInteger, primary_key=True, autoincrement=True)
+    tplid = Column(BigInteger, ForeignKey('plantill.tplid', ondelete='RESTRICT'), nullable=True, index=True)
+    fluid = Column(BigInteger, ForeignKey('flujodoc.fluid', ondelete='RESTRICT'), nullable=True, index=True)
     nodid = Column(String(64), nullable=False)
     docnom = Column(String(255), nullable=False)
     mimtip = Column(String(100), nullable=False)
@@ -28,6 +38,8 @@ class DocFir(Base):
     fecmod = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())
     activo = Column(Boolean, nullable=False, default=True)
 
+    docpasos: Mapped[List["DocPaso"]] = relationship("DocPaso", back_populates="documento")
+
     __table_args__ = (
         CheckConstraint("nodid != ''", name="ck_docfir_nodid_empty"),
         CheckConstraint("docnom != ''", name="ck_docfir_docnom_empty"),
@@ -38,7 +50,7 @@ class DocFir(Base):
         CheckConstraint("hasfir IS NULL OR hasfir ~ '^[0-9a-fA-F]{64}$'", name="ck_docfir_hasfir_hex"),
         CheckConstraint("usrcre != ''", name="ck_docfir_usrcre_empty"),
         CheckConstraint(
-            "estado IN ('BORRADOR', 'PENDIENTE', 'CANCELADO', 'ERROR')",
+            "estado IN ('BORRADOR', 'PREPARADO', 'EN_CURSO', 'PENDIENTE_FIRMA', 'FIRMADO_PARCIAL', 'PENDIENTE_PUBLICACION', 'COMPLETADO', 'RECHAZADO', 'CANCELADO', 'ERROR_PUBLICACION')",
             name="ck_docfir_estado"
         ),
         Index(

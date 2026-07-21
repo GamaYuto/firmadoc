@@ -104,7 +104,7 @@ class DocumentService:
             if not docfir:
                 raise HTTPException(status_code=404, detail="Proceso no encontrado")
                 
-            if docfir.estado not in (EstadoDoc.BORRADOR.value, EstadoDoc.PENDIENTE.value):
+            if docfir.estado not in (EstadoDoc.BORRADOR.value, EstadoDoc.EN_CURSO.value):
                 raise HTTPException(status_code=400, detail=f"No se puede cancelar un proceso en estado {docfir.estado}")
                 
             cancel_documento(db, docfir, usrmod)
