@@ -53,6 +53,7 @@ class DocPaso(Base):
     # Relaciones
     documento = relationship("DocFir", back_populates="docpasos")
     paso_definicion = relationship("Flupaso", back_populates="ejecuciones")
+    docparts = relationship("DocPart", back_populates="docpaso")
 
     __table_args__ = (
         CheckConstraint("orden > 0", name="ck_docpaso_orden_positive"),

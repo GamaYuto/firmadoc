@@ -87,13 +87,14 @@ Representa la ejecución concreta de un paso definido en `flupaso` dentro de un 
 
 ### 6.2 Tabla docpart
 Participantes asignados a la ejecución de un paso.
-- **Columnas:** `parid` (PK), `docid` (FK redundante pero útil para consultas directas e integridad), `dpasid` (FK principal), `partip` (INTERNO, EXTERNO, ASISTIDO), `rolpro` (Ej. FIRMANTE_EXTERNO), `usrid`, `nomcom`, `tipdoc`, `numdoc`, `correo`, `orden`, `estado` (ASIGNADO, NOTIFICADO, ACEPTADO, COMPLETADO, RECHAZADO, CANCELADO, VENCIDO), `fecasg`, `fecfin`, `activo`.
+- **Columnas:** `parid` (PK), `dpasid` (FK principal a docpaso), `usrid` (Varchar 60, identificador estable), `nomcom` (Varchar 150, nombre congelado), `correo` (Varchar 100, correo congelado), `rolpro` (Varchar 100, rol congelado nullable), `orden` (Integer, para secuencias, inicia en 1), `obliga` (Boolean), `estado` (PENDIENTE, DISPONIBLE, EN_PROCESO, COMPLETADO, RECHAZADO, OMITIDO, CANCELADO, VENCIDO), `motivo` (Varchar 500, nullable), `result` (JSONB, nullable), `fecdis` (Timestamptz nullable), `fecini` (Timestamptz nullable), `fecfin` (Timestamptz nullable), `verlock` (Integer optimista, default 1), `usrcre`, `feccre`, `usrmod`, `fecmod`.
 - **Reglas:**
-  - `usrid` obligatorio para tipo INTERNO.
+  - Identidad se resuelve desde un componente central en base a `usrid`. El frontend no es confiable para inyectar `nomcom`, `correo` ni `rolpro`.
   - Un participante puede existir sin firmar (Ej. Revisor).
-  - Un `docpaso` puede tener cero (ej. paso automático PUBLICAR), uno o varios participantes.
-  - Única asignación por `dpasid` + identidad + rol.
-  - ON DELETE RESTRICT estricto.
+  - Un `docpaso` con intervención humana debe tener al menos un `docpart` obligatorio (`obliga=true`).
+  - Única asignación por `dpasid` + `usrid`. Único orden por `dpasid` + `orden`.
+  - Estados terminales exigen `motivo` cuando corresponde (RECHAZADO, OMITIDO, CANCELADO).
+  - ON DELETE RESTRICT estricto. La navegación al documento padre siempre es a través de `docpaso.docid` para asegurar consistencia.
 
 ## 7. Tabla docfirma
 Registro y evidencia lógica de la firma.

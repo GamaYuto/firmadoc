@@ -16,23 +16,7 @@ from app.crud.crud_docfir import create_documento
 from app.core.exceptions import StepConcurrencyError
 from pydantic import ValidationError
 
-@pytest.fixture
-def db_session():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.rollback()
-        db.close()
 
-@pytest.fixture(autouse=True)
-def clean_db(db_session):
-    db_session.execute(Audifir.__table__.delete())
-    db_session.execute(DocPaso.__table__.delete())
-    db_session.execute(DocFir.__table__.delete())
-    db_session.execute(Flupaso.__table__.delete())
-    db_session.execute(Flujodoc.__table__.delete())
-    db_session.commit()
 
 @pytest.fixture
 def setup_flow_doc(db_session):
@@ -446,10 +430,23 @@ def test_reactivation_with_stale_verlock_conflicts(db_session, setup_flow_doc):
     react = DocPasoReactivate(motivo="Reac 1", verlock=old_verlock)
     step_service.reactivate_step(db_session, p1.dpasid, react, "admin")
     
+    db_session.refresh(p1)
+    assert p1.verlock == old_verlock + 1
+    assert p1.estado == "DISPONIBLE"
+    
     # Now trying to reactivate again with stale verlock
-    react_stale = DocPasoReactivate(motivo="Reac 2", verlock=old_verlock)
+    # Since step_service.reactivate_step will fail early due to state != VENCIDO,
+    # we test the transactional limit directly.
+    from app.crud.crud_docpaso import crud_docpaso
     with pytest.raises(StepConcurrencyError):
-        step_service.reactivate_step(db_session, p1.dpasid, react_stale, "admin")
+        crud_docpaso.transition(
+            db=db_session,
+            dpasid=p1.dpasid,
+            expected_verlock=old_verlock,  # Stale
+            estado_destino="DISPONIBLE",
+            usrmod="admin",
+            motivo="Reac 2"
+        )
 
 def test_deadline_update_rolls_back_if_audit_fails(db_session, setup_flow_doc, monkeypatch):
     doc, flujo = setup_flow_doc

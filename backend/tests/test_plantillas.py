@@ -7,20 +7,7 @@ from app.models.tplcamp import TplCamp
 from app.models.audifir import Audifir
 from app.core.database import SessionLocal
 
-@pytest.fixture
-def db_session():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.rollback()
-        db.close()
 
-@pytest.fixture(autouse=True)
-def clean_db(db_session):
-    db_session.execute(TplCamp.__table__.delete())
-    db_session.execute(Plantill.__table__.delete())
-    db_session.commit()
 
 def test_crear_plantilla_borrador(client, db_session):
     resp = client.post("/api/plantillas", json={"tplcod": "TPL-01", "tplnom": "Test", "numpag": 1}, headers={"X-FirmaDoc-User": "admin"})
@@ -344,12 +331,16 @@ def test_filtros_por_estado_y_codigo(client):
     assert resp.status_code == 200
     assert len(resp.json()["items"]) >= 1
 
-def test_auditoria_de_creacion(db_session):
-    ev = db_session.query(Audifir).filter(Audifir.evento == "TPL_CREA").all()
+def test_auditoria_de_creacion(client, db_session):
+    client.post("/api/plantillas", json={"tplcod": "TPL-AUDIT-1", "tplnom": "Test", "numpag": 1}, headers={"X-FirmaDoc-User": "admin"})
+    ev = db_session.query(Audifir).filter(Audifir.evento == "TPL_CREA", Audifir.usrid == "admin").all()
     assert len(ev) > 0
 
-def test_auditoria_de_activacion(db_session):
-    ev = db_session.query(Audifir).filter(Audifir.evento == "TPL_ACTI").all()
+def test_auditoria_de_activacion(client, db_session):
+    resp = client.post("/api/plantillas", json={"tplcod": "TPL-AUDIT-2", "tplnom": "Test", "numpag": 1}, headers={"X-FirmaDoc-User": "admin"})
+    tplid = resp.json()["tplid"]
+    client.post(f"/api/plantillas/{tplid}/activar", headers={"X-FirmaDoc-User": "admin"})
+    ev = db_session.query(Audifir).filter(Audifir.evento == "TPL_ACTI", Audifir.usrid == "admin").all()
     assert len(ev) > 0
 
 def test_rollback_si_falla_auditoria(client, db_session):

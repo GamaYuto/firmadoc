@@ -11,23 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from app.core.database import SessionLocal
 
-@pytest.fixture
-def db_session():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.rollback()
-        db.close()
 
-@pytest.fixture(autouse=True)
-def clean_db(db_session):
-    db_session.execute(Audifir.__table__.delete())
-    db_session.execute(DocPaso.__table__.delete())
-    db_session.execute(DocFir.__table__.delete())
-    db_session.execute(Flupaso.__table__.delete())
-    db_session.execute(Flujodoc.__table__.delete())
-    db_session.commit()
 
 def test_crear_flujo_borrador(db_session):
     obj = FlujoCreate(flucod="F001", flunom="Flujo Test", usrcre="admin")

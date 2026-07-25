@@ -10,6 +10,14 @@ class CRUDDocPaso:
     def get_by_id(self, db: Session, dpasid: int) -> Optional[DocPaso]:
         return db.scalars(select(DocPaso).where(DocPaso.dpasid == dpasid)).first()
 
+    def get_for_update(self, db: Session, dpasid: int) -> Optional[DocPaso]:
+        return db.scalars(
+            select(DocPaso)
+            .where(DocPaso.dpasid == dpasid)
+            .with_for_update()
+        ).first()
+
+
     def get_by_document(self, db: Session, docid: int) -> List[DocPaso]:
         return list(db.scalars(select(DocPaso).where(DocPaso.docid == docid).order_by(DocPaso.orden)).all())
 

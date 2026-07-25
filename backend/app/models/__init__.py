@@ -5,3 +5,4 @@ from app.models.tplcamp import TplCamp
 from app.models.flujodoc import Flujodoc
 from app.models.flupaso import Flupaso
 from app.models.docpaso import DocPaso
+from app.models.docpart import DocPart
