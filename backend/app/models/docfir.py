@@ -29,7 +29,7 @@ class DocFir(Base):
     tamano = Column(BigInteger, nullable=False)
     verini = Column(String(20), nullable=False)
     verfin = Column(String(20), nullable=True)
-    estado = Column(String(20), nullable=False)
+    estado = Column(String(32), nullable=False)
     hasori = Column(String(64), nullable=False)
     hasfir = Column(String(64), nullable=True)
     usrcre = Column(String(60), nullable=False)
@@ -39,6 +39,7 @@ class DocFir(Base):
     activo = Column(Boolean, nullable=False, default=True)
 
     docpasos: Mapped[List["DocPaso"]] = relationship("DocPaso", back_populates="documento")
+    docfirmas = relationship("DocFirma", back_populates="documento")
 
     __table_args__ = (
         CheckConstraint("nodid != ''", name="ck_docfir_nodid_empty"),
@@ -58,5 +59,15 @@ class DocFir(Base):
             'nodid', 'verini',
             unique=True,
             postgresql_where=(activo == True) & (estado != 'CANCELADO')
+        ),
+        Index(
+            'uq_docfir_nodid_activo',
+            'nodid',
+            unique=True,
+            postgresql_where=estado.in_([
+                'BORRADOR', 'PREPARADO', 'EN_CURSO',
+                'PENDIENTE_FIRMA', 'FIRMADO_PARCIAL',
+                'PENDIENTE_PUBLICACION', 'ERROR_PUBLICACION'
+            ])
         ),
     )

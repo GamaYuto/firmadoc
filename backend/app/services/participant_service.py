@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.models.docpaso import DocPaso
 from app.models.docpart import DocPart
@@ -131,41 +132,50 @@ class ParticipantService:
             "rechazo_inmediato": config.get("rechazo_inmediato", True)
         }
 
+    def _get_required_states(self, db: Session, dpasid: int) -> List[str]:
+        stmt = (
+            select(DocPart.estado)
+            .where(DocPart.dpasid == dpasid, DocPart.obliga.is_(True))
+            .order_by(DocPart.parid)
+        )
+        return list(db.scalars(stmt).all())
+
     def _evaluate_step_resolution(self, db: Session, step: DocPaso, actor_id: str, now: datetime):
-        participants = crud_docpart.list_by_step_for_update(db, step.dpasid)
+        req_states = self._get_required_states(db, step.dpasid)
         config = self._get_config(step)
         estrategia = config["part_estrategia"]
         rechazo_inmediato = config["rechazo_inmediato"]
+        resolution_time = max(now, step.fecini or now)
+        step_start_time = step.fecini or resolution_time
         
-        req = [p for p in participants if p.obliga]
-        if not req:
+        if not req_states:
             return
 
-        req_comp = [p for p in req if p.estado == "COMPLETADO"]
-        req_omit = [p for p in req if p.estado == "OMITIDO"]
-        req_rech = [p for p in req if p.estado == "RECHAZADO"]
-        req_venc = [p for p in req if p.estado == "VENCIDO"]
-        req_active = [p for p in req if p.estado not in ("COMPLETADO", "OMITIDO", "RECHAZADO", "CANCELADO", "VENCIDO")]
+        req_comp = req_states.count("COMPLETADO")
+        req_omit = req_states.count("OMITIDO")
+        req_rech = req_states.count("RECHAZADO")
+        req_venc = req_states.count("VENCIDO")
+        req_active = sum(1 for estado in req_states if estado not in ("COMPLETADO", "OMITIDO", "RECHAZADO", "CANCELADO", "VENCIDO"))
 
         step_res_estado = None
         
         if estrategia == "TODOS":
-            if len(req_omit) == len(req):
+            if req_omit == len(req_states):
                 step_res_estado = "OMITIDO"
             elif req_rech:
                 step_res_estado = "RECHAZADO"
-            elif len(req_comp) > 0 and len(req_comp) + len(req_omit) == len(req):
+            elif req_comp > 0 and req_comp + req_omit == len(req_states):
                 step_res_estado = "COMPLETADO"
                 
         elif estrategia == "UNO":
-            if req_comp:
+            if req_comp > 0:
                 step_res_estado = "COMPLETADO"
             elif req_rech and rechazo_inmediato:
                 step_res_estado = "RECHAZADO"
             elif not req_active:
                 if req_rech:
                     step_res_estado = "RECHAZADO"
-                elif len(req_omit) == len(req):
+                elif req_omit == len(req_states):
                     step_res_estado = "OMITIDO"
                 elif req_venc:
                     step_res_estado = "VENCIDO"
@@ -179,8 +189,8 @@ class ParticipantService:
                     expected_verlock=step.verlock,
                     estado_destino=step_res_estado,
                     motivo="Resolución automática de participantes",
-                    fecini=step.fecini or now,
-                    fecfin=now,
+                    fecini=step_start_time,
+                    fecfin=resolution_time,
                     usrmod=actor_id
                 )
                 create_evento_tx(db, f"PASO_{step_res_estado[:4]}", "PASO", step.dpasid, step.docid, actor_id, detalle=f"Resolución {estrategia}")
@@ -266,11 +276,13 @@ class ParticipantService:
             fecini=now if p.fecini is None else p.fecini,
             usrmod=actor_id
         ))
+        db.refresh(p)
         self._record_audit(db, "PAR_INIC", actor_id, p, "DISPONIBLE", "EN_PROCESO")
         
         # Update step if needed
         if step.estado == "DISPONIBLE":
             crud_docpaso.transition(db, step.dpasid, step.verlock, "EN_PROCESO", actor_id, fecini=now)
+            db.refresh(step)
             create_evento_tx(db, "PASO_INIC", "PASO", step.dpasid, step.docid, actor_id)
 
     def complete_participation(self, db: Session, parid: int, actor_id: str, expected_verlock: int, result: Optional[Dict[str, Any]] = None):
@@ -286,6 +298,7 @@ class ParticipantService:
         # Update step if needed
         if step.estado == "DISPONIBLE":
             crud_docpaso.transition(db, step.dpasid, step.verlock, "EN_PROCESO", actor_id, fecini=now)
+            db.refresh(step)
             create_evento_tx(db, "PASO_INIC", "PASO", step.dpasid, step.docid, actor_id)
 
         old_estado = p.estado
@@ -296,6 +309,7 @@ class ParticipantService:
             fecini=p.fecini or now,
             usrmod=actor_id
         ))
+        db.refresh(p)
         if result:
             crud_docpart.save_result(db, parid, expected_verlock + 1, result, actor_id)
             
@@ -317,6 +331,7 @@ class ParticipantService:
         # Update step if needed
         if step.estado == "DISPONIBLE":
             crud_docpaso.transition(db, step.dpasid, step.verlock, "EN_PROCESO", actor_id, fecini=now)
+            db.refresh(step)
             create_evento_tx(db, "PASO_INIC", "PASO", step.dpasid, step.docid, actor_id)
 
         old_estado = p.estado
@@ -327,6 +342,7 @@ class ParticipantService:
             fecfin=now,
             usrmod=actor_id
         ))
+        db.refresh(p)
         self._record_audit(db, "PAR_RECH", actor_id, p, old_estado, "RECHAZADO", motivo)
         
         self._evaluate_step_resolution(db, step, actor_id, now)
@@ -344,6 +360,7 @@ class ParticipantService:
         # Update step if needed
         if step.estado == "DISPONIBLE":
             crud_docpaso.transition(db, step.dpasid, step.verlock, "EN_PROCESO", actor_id, fecini=now)
+            db.refresh(step)
             create_evento_tx(db, "PASO_INIC", "PASO", step.dpasid, step.docid, actor_id)
 
         old_estado = p.estado
@@ -354,6 +371,7 @@ class ParticipantService:
             fecfin=now,
             usrmod=actor_id
         ))
+        db.refresh(p)
         self._record_audit(db, "PAR_OMIT", actor_id, p, old_estado, "OMITIDO", motivo)
         
         self._evaluate_step_resolution(db, step, actor_id, now)

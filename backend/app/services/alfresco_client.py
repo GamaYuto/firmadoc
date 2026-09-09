@@ -1,9 +1,14 @@
 import httpx
+try:
+    import pymupdf as fitz
+except ImportError:  # pragma: no cover - fallback for older installs
+    import fitz  # type: ignore[no-redef]
 from uuid import UUID
 import os
 import tempfile
 import hashlib
 from typing import Tuple
+from pathlib import Path
 from app.core.config import settings
 from app.schemas.alfresco import NodeMetadata
 import logging
@@ -21,10 +26,21 @@ class AlfrescoUnsupportedTypeError(AlfrescoError): pass
 
 class AlfrescoClient:
     def __init__(self):
-        self.base_url = f"{settings.ALFRESCO_BASE_URL.rstrip('/')}{settings.ALFRESCO_API_URL}"
-        self.auth = (settings.ALFRESCO_USER, settings.ALFRESCO_PASSWORD)
+        api_path = settings.ALFRESCO_API_PATH or settings.ALFRESCO_API_URL or "/alfresco/api/-default-/public/alfresco/versions/1"
+        username = settings.ALFRESCO_USERNAME or settings.ALFRESCO_USER
+        if not username:
+            raise AlfrescoAuthenticationError("Usuario de Alfresco no configurado")
+        self.base_url = f"{settings.ALFRESCO_BASE_URL.rstrip('/')}{api_path}"
+        self.auth = (username, settings.ALFRESCO_PASSWORD)
         self.timeout = settings.ALFRESCO_TIMEOUT_SECONDS
-        self.verify = settings.ALFRESCO_VERIFY_SSL
+        ca_bundle = getattr(settings, "ALFRESCO_CA_BUNDLE", None)
+        if ca_bundle:
+            ca_bundle_path = Path(ca_bundle)
+            if not ca_bundle_path.exists():
+                raise AlfrescoConnectionError("La CA configurada para Alfresco no existe")
+            self.verify = str(ca_bundle_path)
+        else:
+            self.verify = True
         self.max_size = settings.ALFRESCO_MAX_DOWNLOAD_MB * 1024 * 1024
 
     def _handle_error(self, exc: httpx.HTTPError):
@@ -110,7 +126,16 @@ class AlfrescoClient:
                             
                         hasher.update(chunk)
                         f.write(chunk)
-                        
+
+            try:
+                with fitz.open(temp_path) as document:
+                    if not document.is_pdf or document.needs_pass or document.page_count <= 0:
+                        raise AlfrescoInvalidContentError("El contenido descargado no es un PDF vÃ¡lido")
+            except AlfrescoInvalidContentError:
+                raise
+            except Exception as exc:
+                raise AlfrescoInvalidContentError("El contenido descargado no es un PDF vÃ¡lido") from exc
+
             final_hash = hasher.hexdigest()
             return temp_path, downloaded_size, final_hash
         except Exception as e:

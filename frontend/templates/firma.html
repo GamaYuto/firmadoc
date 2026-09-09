@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FirmaDoc | Firmar</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">FirmaDoc</div>
+      <div class="header-meta">
+        <span id="docName">Documento</span>
+        <span id="docStatus" class="status-pill">Estado</span>
+        <span id="signatureTypeText" class="status-pill">Tipo</span>
+        <span class="status-pill lab-mode">MODO LABORATORIO</span>
+        <label>Usuario <input data-user-input type="text" autocomplete="off"></label>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="sidebar">
+        <a class="btn" href="/pendientes">Pendientes</a>
+        <h2>Paginas</h2>
+        <nav id="thumbs" aria-label="Paginas del PDF"></nav>
+      </aside>
+
+      <section class="viewer-column" aria-label="Visor PDF">
+        <div class="viewer-toolbar">
+          <div id="pageStatus" role="status"></div>
+          <label>Zoom
+            <select id="zoomSelect">
+              <option value="0.75">75%</option>
+              <option value="1" selected>100%</option>
+              <option value="1.5">150%</option>
+            </select>
+          </label>
+        </div>
+        <div id="pdfContainer" class="pdf-scroll"></div>
+      </section>
+
+      <aside class="config-panel">
+        <div id="alerts" aria-live="polite"></div>
+        <section>
+          <h2>Firmante</h2>
+          <p id="signerName"></p>
+          <p>Declaro que he revisado el documento y confirmo mi intencion de firmarlo mediante FirmaDoc.</p>
+        </section>
+
+        <section id="handwrittenPanel" hidden>
+          <h2>Firma manuscrita</h2>
+          <div class="signature-pad-wrap">
+            <canvas id="signatureCanvas" aria-label="Area de captura de firma"></canvas>
+          </div>
+          <div class="button-row">
+            <button id="clearButton" class="btn" type="button">Limpiar</button>
+          </div>
+        </section>
+
+        <section id="internalPanel" hidden>
+          <h2>Firma interna</h2>
+          <p>Confirmar firma electronica autenticada.</p>
+        </section>
+
+        <section class="properties">
+          <h2>Previsualizacion</h2>
+          <div id="signaturePreview" class="preview-box">Sin previsualizacion</div>
+        </section>
+
+        <div class="button-row">
+          <button id="cancelButton" class="btn btn-secondary" type="button">Cancelar</button>
+          <button id="confirmButton" class="btn btn-primary" type="button">Confirmar</button>
+        </div>
+
+        <section id="resultPanel" class="properties" hidden></section>
+      </aside>
+    </main>
+
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/signature_pad.umd.min.js"></script>
+    <script type="module" src="/static/js/firma.js"></script>
+  </body>
+</html>

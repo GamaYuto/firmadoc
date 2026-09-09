@@ -11,6 +11,11 @@ from app.core.database import SessionLocal
 from app.core.config import settings
 from sqlalchemy.exc import IntegrityError
 
+try:
+    import pymupdf as fitz
+except ImportError:  # pragma: no cover
+    import fitz  # type: ignore[no-redef]
+
 @pytest.fixture
 def db_session():
     db = SessionLocal()
@@ -22,7 +27,18 @@ def db_session():
 
 @pytest.fixture
 def base_url():
-    return f"{settings.ALFRESCO_BASE_URL.rstrip('/')}{settings.ALFRESCO_API_URL}"
+    api_path = settings.ALFRESCO_API_PATH or settings.ALFRESCO_API_URL or "/alfresco/api/-default-/public/alfresco/versions/1"
+    return f"{settings.ALFRESCO_BASE_URL.rstrip('/')}{api_path}"
+
+
+def _make_pdf_bytes(text: str = "FirmaDoc") -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=595, height=842)
+    page.insert_text((72, 72), text, fontsize=12)
+    document.set_metadata({})
+    data = document.tobytes(garbage=3, deflate=True, use_objstms=1, no_new_id=True)
+    document.close()
+    return data
 
 # 1-7. Creación exitosa, valores de Alfresco, hash, tamaño, version, estado, DOC_INICIO
 @respx.mock
@@ -31,7 +47,7 @@ def test_iniciar_proceso_exito(client, base_url, db_session):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "doc.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}, "properties": {"cm:versionLabel": "1.2"}}
     }))
-    pdf_content = b"%PDF-1.4\n%EOF"
+    pdf_content = _make_pdf_bytes("doc.pdf")
     respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=pdf_content))
     
     response = client.post("/api/documentos/iniciar", json={"node_id": node_id}, headers={"X-FirmaDoc-User": "testuser"})
@@ -63,7 +79,7 @@ def test_iniciar_proceso_rollback_auditoria(client, base_url, db_session):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "doc.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4\n%EOF"))
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("doc.pdf")))
     
     with patch("app.services.document_service.create_evento", side_effect=Exception("DB Failure")):
         response = client.post("/api/documentos/iniciar", json={"node_id": node_id}, headers={"X-FirmaDoc-User": "testuser"})
@@ -148,7 +164,7 @@ def test_iniciar_proceso_duplicado(client, base_url, db_session):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "doc.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4"))
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("doc.pdf")))
     
     # 1st time
     response = client.post("/api/documentos/iniciar", json={"node_id": node_id}, headers={"X-FirmaDoc-User": "u1"})
@@ -170,7 +186,7 @@ def test_can_restart_same_node_version_after_cancel(client, base_url, db_session
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "doc.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}, "properties": {"cm:versionLabel": "1.0"}}
     }))
-    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4"))
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("doc.pdf")))
     
     # 1. Crear proceso BORRADOR
     resp1 = client.post("/api/documentos/iniciar", json={"node_id": node_id}, headers={"X-FirmaDoc-User": "u1"})
@@ -210,7 +226,7 @@ def test_iniciar_proceso_concurrencia_integrity(client, base_url, monkeypatch):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "doc.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4"))
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("doc.pdf")))
     
     # Bypass initial check and force integrity error on insert
     with patch("app.services.document_service.get_active_by_node_version", return_value=None):
@@ -225,7 +241,7 @@ def test_obtener_proceso(client, base_url):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "d.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4"))
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("d.pdf")))
     
     resp_init = client.post("/api/documentos/iniciar", json={"node_id": node_id}, headers={"X-FirmaDoc-User": "u1"})
     docid = resp_init.json()["docid"]
@@ -252,7 +268,7 @@ def test_cancelacion_proceso(client, base_url, db_session):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "d.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4"))
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("d.pdf")))
     
     resp_init = client.post("/api/documentos/iniciar", json={"node_id": node_id}, headers={"X-FirmaDoc-User": "u1"})
     docid = resp_init.json()["docid"]

@@ -270,3 +270,154 @@ Se reportan los siguientes totales comprobados:
 - Crear un borrador `docfir`.
 - (Próximamente: iniciar flujo, notificar a participantes, recolectar firmas y publicar). del PDF final sellado y firmado.
 - Publicación de documentos firmados como nueva versión en Alfresco.
+
+```
+firmadoc
+├─ .agent
+│  └─ skills
+│     ├─ firmadoc-development
+│     │  ├─ agents
+│     │  │  └─ openai.yaml
+│     │  ├─ references
+│     │  │  ├─ alfresco-integration.md
+│     │  │  ├─ architecture.md
+│     │  │  ├─ data-model-v1.md
+│     │  │  ├─ database-rules.md
+│     │  │  ├─ development-workflow.md
+│     │  │  ├─ security-rules.md
+│     │  │  └─ signature-architecture.md
+│     │  └─ SKILL.md
+│     └─ firmadoc-review
+│        ├─ agents
+│        │  └─ openai.yaml
+│        ├─ references
+│        │  ├─ alfresco-document-review.md
+│        │  ├─ database-migration-review.md
+│        │  ├─ review-checklist.md
+│        │  ├─ review-report.md
+│        │  ├─ security-audit.md
+│        │  └─ testing-evidence.md
+│        └─ SKILL.md
+├─ backend
+│  ├─ alembic
+│  │  ├─ env.py
+│  │  ├─ README
+│  │  ├─ script.py.mako
+│  │  └─ versions
+│  │     ├─ 27c5eb2328af_implementar_docfirma_y_firpos.py
+│  │     ├─ 60952ef5bba7_crear_modelo_docfir.py
+│  │     ├─ 62215c760c16_initial_audifir_model.py
+│  │     ├─ 82dc189cf4b8_implement_docpaso.py
+│  │     ├─ f58b81150be2_implementar_flujodoc_y_flupaso_docfir_.py
+│  │     ├─ f61284a6c891_implementar_docpart.py
+│  │     └─ f761788400b6_crear_modelos_de_plantillas_y_campos.py
+│  ├─ alembic.ini
+│  ├─ app
+│  │  ├─ api
+│  │  │  ├─ alfresco.py
+│  │  │  ├─ api_router.py
+│  │  │  ├─ documentos.py
+│  │  │  ├─ health.py
+│  │  │  ├─ plantillas.py
+│  │  │  └─ __init__.py
+│  │  ├─ core
+│  │  │  ├─ config.py
+│  │  │  ├─ database.py
+│  │  │  ├─ exceptions.py
+│  │  │  └─ identity.py
+│  │  ├─ crud
+│  │  │  ├─ crud_audifir.py
+│  │  │  ├─ crud_docfir.py
+│  │  │  ├─ crud_docfirma.py
+│  │  │  ├─ crud_docpart.py
+│  │  │  ├─ crud_docpaso.py
+│  │  │  ├─ crud_flujodoc.py
+│  │  │  ├─ crud_flupaso.py
+│  │  │  ├─ crud_plantill.py
+│  │  │  ├─ crud_tplcamp.py
+│  │  │  └─ __init__.py
+│  │  ├─ main.py
+│  │  ├─ models
+│  │  │  ├─ audifir.py
+│  │  │  ├─ docfir.py
+│  │  │  ├─ docfirma.py
+│  │  │  ├─ docpart.py
+│  │  │  ├─ docpaso.py
+│  │  │  ├─ firpos.py
+│  │  │  ├─ flujodoc.py
+│  │  │  ├─ flupaso.py
+│  │  │  ├─ plantill.py
+│  │  │  ├─ tplcamp.py
+│  │  │  └─ __init__.py
+│  │  ├─ schemas
+│  │  │  ├─ alfresco.py
+│  │  │  ├─ campo.py
+│  │  │  ├─ docfirma.py
+│  │  │  ├─ docpart.py
+│  │  │  ├─ docpaso.py
+│  │  │  ├─ documento.py
+│  │  │  ├─ flujo.py
+│  │  │  ├─ pdf_signature.py
+│  │  │  └─ plantilla.py
+│  │  ├─ services
+│  │  │  ├─ alfresco_client.py
+│  │  │  ├─ alfresco_service.py
+│  │  │  ├─ audit_service.py
+│  │  │  ├─ document_service.py
+│  │  │  ├─ flow_service.py
+│  │  │  ├─ participant_service.py
+│  │  │  ├─ pdf_service.py
+│  │  │  ├─ pdf_signature_service.py
+│  │  │  ├─ pdf_validation_service.py
+│  │  │  ├─ signature_exceptions.py
+│  │  │  ├─ signature_image_service.py
+│  │  │  ├─ signature_service.py
+│  │  │  ├─ step_service.py
+│  │  │  ├─ template_service.py
+│  │  │  └─ temporary_artifact_service.py
+│  │  └─ __init__.py
+│  ├─ Dockerfile
+│  ├─ fix.py
+│  ├─ pytest.ini
+│  ├─ requirements.txt
+│  └─ tests
+│     ├─ conftest.py
+│     ├─ test_alfresco.py
+│     ├─ test_alfresco_client.py
+│     ├─ test_audit.py
+│     ├─ test_docfirma.py
+│     ├─ test_docfirma_concurrency.py
+│     ├─ test_docfirma_migration.py
+│     ├─ test_docpart.py
+│     ├─ test_docpaso.py
+│     ├─ test_documentos.py
+│     ├─ test_flujos.py
+│     ├─ test_health.py
+│     ├─ test_pdf_security.py
+│     ├─ test_pdf_signature.py
+│     ├─ test_pdf_signature_integration.py
+│     ├─ test_pdf_temporary_artifacts.py
+│     ├─ test_pdf_validation.py
+│     ├─ test_plantillas.py
+│     ├─ test_signature_publication.py
+│     └─ test_signature_reconciliation.py
+├─ database
+│  ├─ init.sql
+│  └─ migrations
+├─ docker-compose.yml
+├─ docs
+│  └─ architecture
+│     ├─ data-model-v1.md
+│     ├─ docfirma-design.md
+│     ├─ docpart-design.md
+│     └─ signature-architecture.md
+├─ frontend
+│  ├─ Dockerfile
+│  ├─ static
+│  │  ├─ css
+│  │  ├─ js
+│  │  └─ vendor
+│  └─ templates
+└─ README.md
+
+```

@@ -22,8 +22,9 @@ def create_evento_tx(db: Session, evento: str, enttip: Optional[str] = None, ent
 
 def create_evento(db: Session, evento: str, docid: Optional[int] = None, usrid: Optional[str] = None, iporig: Optional[str] = None, detalle: Optional[str] = None) -> Audifir:
     db_obj = create_evento_tx(db=db, evento=evento, docid=docid, usrid=usrid, iporig=iporig, detalle=detalle)
-    db.commit()
+    db.flush()
     db.refresh(db_obj)
+    db.commit()
     return db_obj
 
 def get_evento(db: Session, audid: int) -> Optional[Audifir]:

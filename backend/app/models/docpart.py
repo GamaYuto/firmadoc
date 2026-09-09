@@ -48,3 +48,4 @@ class DocPart(Base):
     )
 
     docpaso = relationship("DocPaso", back_populates="docparts")
+    docfirmas = relationship("DocFirma", back_populates="participante")

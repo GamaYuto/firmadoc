@@ -6,3 +6,5 @@ from app.models.flujodoc import Flujodoc
 from app.models.flupaso import Flupaso
 from app.models.docpaso import DocPaso
 from app.models.docpart import DocPart
+from app.models.docfirma import DocFirma
+from app.models.firpos import Firpos

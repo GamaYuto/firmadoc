@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.requests import Request
+from fastapi.staticfiles import StaticFiles
 from app.api.api_router import api_router
 from app.core.config import settings
 
@@ -18,3 +21,31 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 app.include_router(api_router, prefix="/api")
+
+_ROOT_DIR = Path(__file__).resolve().parents[2]
+_FRONTEND_DIR = _ROOT_DIR / "frontend"
+_STATIC_DIR = _FRONTEND_DIR / "static"
+_TEMPLATES_DIR = _FRONTEND_DIR / "templates"
+
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+def _frontend_file(name: str) -> FileResponse:
+    path = _TEMPLATES_DIR / name
+    return FileResponse(path)
+
+
+@app.get("/documentos/preparar", include_in_schema=False)
+async def preparation_page():
+    return _frontend_file("preparar.html")
+
+
+@app.get("/firmas/{firid}", include_in_schema=False)
+async def signature_page(firid: int):
+    return _frontend_file("firma.html")
+
+
+@app.get("/pendientes", include_in_schema=False)
+async def pending_page():
+    return _frontend_file("pendientes.html")

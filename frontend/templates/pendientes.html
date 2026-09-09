@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FirmaDoc | Pendientes</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">FirmaDoc</div>
+      <div class="header-meta">
+        <span class="status-pill lab-mode">MODO LABORATORIO</span>
+        <label>Usuario <input data-user-input type="text" autocomplete="off"></label>
+        <button id="refreshButton" class="btn" type="button">Actualizar</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="alerts" aria-live="polite"></div>
+      <section id="pendingList" class="pending-list" aria-label="Pendientes de firma"></section>
+    </main>
+
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+    <script type="module" src="/static/js/pendientes.js"></script>
+  </body>
+</html>

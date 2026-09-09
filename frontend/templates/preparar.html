@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FirmaDoc | Preparar documento</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">FirmaDoc</div>
+      <div class="header-meta">
+        <span id="docName">Documento</span>
+        <span id="docVersion" class="status-pill">Version</span>
+        <span id="docStatus" class="status-pill">Estado</span>
+        <span class="status-pill lab-mode">MODO LABORATORIO</span>
+        <label>Usuario <input data-user-input type="text" autocomplete="off"></label>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="sidebar">
+        <button id="backButton" class="btn" type="button">Regresar</button>
+        <h2>Paginas</h2>
+        <nav id="thumbs" aria-label="Paginas del PDF"></nav>
+      </aside>
+
+      <section class="viewer-column" aria-label="Visor PDF">
+        <div class="viewer-toolbar">
+          <div id="pageStatus" role="status"></div>
+          <label>Zoom
+            <select id="zoomSelect">
+              <option value="0.75">75%</option>
+              <option value="1" selected>100%</option>
+              <option value="1.5">150%</option>
+            </select>
+          </label>
+        </div>
+        <div id="pdfContainer" class="pdf-scroll"></div>
+      </section>
+
+      <aside class="config-panel">
+        <div id="alerts" aria-live="polite"></div>
+        <div class="field">
+          <label for="signatureType">Tipo de firma</label>
+          <select id="signatureType">
+            <option value="MANUSCRITA">Firma manuscrita</option>
+            <option value="INTERNA">Firma interna</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="signerUser">Firmante</label>
+          <input id="signerUser" type="text" autocomplete="off" value="firmante">
+        </div>
+        <div class="field">
+          <label for="signerOrder">Orden</label>
+          <input id="signerOrder" type="number" min="1" step="1" value="1">
+        </div>
+        <div class="button-row">
+          <button id="deletePosition" class="btn btn-danger" type="button">Eliminar posicion</button>
+        </div>
+        <p id="dirtyStatus" class="dirty-status" role="status">Sin cambios pendientes</p>
+        <section class="properties">
+          <h2>Posicion</h2>
+          <div id="positionInfo"><p>Seleccione o dibuje un rectangulo.</p></div>
+        </section>
+        <div class="button-row">
+          <button id="saveDraft" class="btn btn-primary" type="button">Guardar borrador</button>
+          <button id="sendSignature" class="btn btn-info" type="button">Enviar a firma</button>
+          <button id="saveAndSendSignature" class="btn btn-primary" type="button">Guardar y enviar</button>
+        </div>
+      </aside>
+    </main>
+
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+    <script type="module" src="/static/js/preparar.js"></script>
+  </body>
+</html>

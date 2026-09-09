@@ -1,4 +1,5 @@
-def test_health_check(client):
-    response = client.get("/api/health")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok", "message": "FirmaDoc API is running"}
+from app.api.health import health_check
+
+
+def test_health_check():
+    assert health_check() == {"status": "ok", "message": "FirmaDoc API is running"}

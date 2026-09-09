@@ -9,6 +9,11 @@ import tempfile
 from unittest.mock import patch
 from app.core.database import SessionLocal
 
+try:
+    import pymupdf as fitz
+except ImportError:  # pragma: no cover
+    import fitz  # type: ignore[no-redef]
+
 @pytest.fixture
 def db_session():
     db = SessionLocal()
@@ -20,7 +25,18 @@ def db_session():
 
 @pytest.fixture
 def base_url():
-    return f"{settings.ALFRESCO_BASE_URL.rstrip('/')}{settings.ALFRESCO_API_URL}"
+    api_path = settings.ALFRESCO_API_PATH or settings.ALFRESCO_API_URL or "/alfresco/api/-default-/public/alfresco/versions/1"
+    return f"{settings.ALFRESCO_BASE_URL.rstrip('/')}{api_path}"
+
+
+def _make_pdf_bytes(text: str = "FirmaDoc") -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=595, height=842)
+    page.insert_text((72, 72), text, fontsize=12)
+    document.set_metadata({})
+    data = document.tobytes(garbage=3, deflate=True, use_objstms=1, no_new_id=True)
+    document.close()
+    return data
 
 # 1. nodeId con UUID inválido
 def test_get_node_metadata_invalid_uuid(client):
@@ -72,7 +88,7 @@ def test_get_node_content_success(client, base_url):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "doc.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    pdf_content = b"%PDF-1.4\n%EOF"
+    pdf_content = _make_pdf_bytes("doc.pdf")
     respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=pdf_content))
     
     response = client.get(f"/api/alfresco/nodes/{node_id}/content")
@@ -162,7 +178,7 @@ def test_auditoria_exitosamente_guardada(client, base_url, db_session):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "ok.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4"))
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("ok.pdf")))
     
     response = client.get(f"/api/alfresco/nodes/{node_id}/content")
     assert response.status_code == 200
@@ -202,7 +218,7 @@ def test_fallo_auditoria_no_rompe_descarga(client, base_url):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "ok.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    pdf_content = b"%PDF-1.4\n%EOF"
+    pdf_content = _make_pdf_bytes("ok.pdf")
     respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=pdf_content))
     
     with patch("app.api.alfresco.create_evento", side_effect=Exception("DB down")):
@@ -217,7 +233,7 @@ def test_temp_file_deleted_on_success(client, base_url):
     respx.get(f"{base_url}/nodes/{node_id}").mock(return_value=httpx.Response(200, json={
         "entry": {"id": node_id, "name": "ok.pdf", "isFile": True, "content": {"mimeType": "application/pdf"}}
     }))
-    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4"))
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("ok.pdf")))
     
     # Rastrear archivos temporales. Patching os.unlink to see what was unlinked
     unlinked_files = []
