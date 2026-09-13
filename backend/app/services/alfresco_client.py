@@ -128,13 +128,15 @@ class AlfrescoClient:
                         f.write(chunk)
 
             try:
-                with fitz.open(temp_path) as document:
+                with open(temp_path, "rb") as pdf_file:
+                    pdf_bytes = pdf_file.read()
+                with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
                     if not document.is_pdf or document.needs_pass or document.page_count <= 0:
-                        raise AlfrescoInvalidContentError("El contenido descargado no es un PDF vÃ¡lido")
+                        raise AlfrescoInvalidContentError("El contenido descargado no es un PDF válido")
             except AlfrescoInvalidContentError:
                 raise
             except Exception as exc:
-                raise AlfrescoInvalidContentError("El contenido descargado no es un PDF vÃ¡lido") from exc
+                raise AlfrescoInvalidContentError("El contenido descargado no es un PDF válido") from exc
 
             final_hash = hasher.hexdigest()
             return temp_path, downloaded_size, final_hash

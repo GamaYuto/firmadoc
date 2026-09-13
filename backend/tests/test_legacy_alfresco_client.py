@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from uuid import UUID
 
+import certifi
 import httpx
 import pytest
 import respx
@@ -36,7 +37,7 @@ def _make_pdf_bytes(text: str = "Legacy Alfresco") -> bytes:
 def _configure_legacy_settings(monkeypatch, tmp_path: Path, *, ca_bundle_path: str | None = None) -> Path:
     ca_bundle = Path(ca_bundle_path) if ca_bundle_path else (tmp_path / "legacy-ca.pem")
     if not ca_bundle_path:
-        ca_bundle.write_text("dummy ca", encoding="utf-8")
+        ca_bundle.write_text(Path(certifi.where()).read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(legacy_module.settings, "ALFRESCO_BASE_URL", ROOT_URL, raising=False)
     monkeypatch.setattr(legacy_module.settings, "ALFRESCO_API_URL", "/alfresco/api/-default-/public/alfresco/versions/1", raising=False)
     monkeypatch.setattr(legacy_module.settings, "ALFRESCO_API_PATH", "/alfresco/api/-default-/public/alfresco/versions/1", raising=False)

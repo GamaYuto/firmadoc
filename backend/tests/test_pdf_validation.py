@@ -183,7 +183,12 @@ def test_validate_source_pdf_rejects_symlink(tmp_path):
     target_path = tmp_path / "target.pdf"
     _write_pdf(target_path)
     link_path = tmp_path / "link.pdf"
-    link_path.symlink_to(target_path)
+    try:
+        link_path.symlink_to(target_path)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("El entorno Windows no tiene privilegio para crear symlinks")
+        raise
 
     with pytest.raises(SignaturePayloadError):
         PdfValidationService().validate_source_pdf(link_path)

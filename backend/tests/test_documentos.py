@@ -3,6 +3,7 @@ import respx
 import httpx
 from uuid import uuid4
 import os
+import tempfile
 from unittest.mock import patch
 from app.models.docfir import DocFir, EstadoDoc
 from app.models.audifir import Audifir
@@ -301,6 +302,7 @@ def test_iniciar_proceso_borra_temporal(client, base_url):
     }))
     respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=b"%PDF-1.4"))
     
+    tempfile.gettempdir()
     unlinked = []
     orig = os.unlink
     def fake_ul(p):

@@ -12,7 +12,7 @@ from app.core.config import settings
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
-HEAD_REV = "27c5eb2328af"
+HEAD_REV = "c1a9b8a7f2d3"
 BASE_REV = "f61284a6c891"
 DATABASE_URL = settings.DATABASE_URL
 
@@ -105,10 +105,7 @@ def test_migration_upgrade_downgrade_normal():
         assert not _table_exists(db, "firpos")
     finally:
         _close_db(db, engine)
-        try:
-            command.upgrade(cfg, HEAD_REV)
-        except Exception:
-            pass
+        command.upgrade(cfg, "head")
 
 
 def test_migration_downgrade_rechaza_eventos_firma():
@@ -150,10 +147,7 @@ def test_migration_downgrade_rechaza_eventos_firma():
             command.downgrade(cfg, BASE_REV)
         except Exception:
             pass
-        try:
-            command.upgrade(cfg, HEAD_REV)
-        except Exception:
-            pass
+        command.upgrade(cfg, "head")
 
 
 def test_migration_preflight_rechaza_nodid_duplicado():
@@ -201,10 +195,7 @@ def test_migration_preflight_rechaza_nodid_duplicado():
         except Exception:
             db.rollback()
         _close_db(db, engine)
-        try:
-            command.upgrade(cfg, HEAD_REV)
-        except Exception:
-            pass
+        command.upgrade(cfg, "head")
 
 
 def test_migration_un_solo_head():
@@ -239,7 +230,4 @@ def test_migration_crea_constraints_e_indices():
         assert "FIRMA" in audifir_constraint
     finally:
         _close_db(db, engine)
-        try:
-            command.upgrade(cfg, HEAD_REV)
-        except Exception:
-            pass
+        command.upgrade(cfg, "head")

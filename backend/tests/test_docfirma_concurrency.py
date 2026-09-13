@@ -477,6 +477,11 @@ def multi_step_context():
             "part4": part4.parid,
         }
     finally:
+        try:
+            db.rollback()
+        finally:
+            db.close()
+
         cleanup = SessionFactory()
         try:
             cleanup.execute(text("DELETE FROM firpos"))
