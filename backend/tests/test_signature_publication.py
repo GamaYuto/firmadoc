@@ -27,7 +27,13 @@ from app.schemas.flujo import FlujoCreate, PasoCreate
 from app.services.alfresco_service import AlfrescoLabClient, AlfrescoService
 from app.services.flow_service import flow_service
 from app.services.pdf_signature_service import PdfSignatureService
-from app.services.signature_exceptions import SignaturePublicationError, SignatureRecoveryRequiredError, SignatureWriteDisabledError
+from app.services.signature_exceptions import (
+    SignatureIntegrityError,
+    SignaturePublicationError,
+    SignatureRecoveryRequiredError,
+    SignatureUploadError,
+    SignatureWriteDisabledError,
+)
 from app.services.signature_service import signature_service
 from app.services.step_service import step_service
 from app.services.temporary_artifact_service import TemporaryArtifactService
@@ -673,3 +679,320 @@ def test_publish_document_remote_version_conflict_does_not_put(db_session, tmp_p
     assert excinfo.value.code == "REMOTE_VERSION_CONFLICT"
     assert put_route.call_count == 0
     assert context["generated_artifact"].path.exists() is True
+
+
+@respx.mock
+def test_publication_upload_failure_preserves_signed_artifact(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    service = _publication_service(context["temp_service"], context["node_id"])
+    node_id = context["node_id"]
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, content=context["source_bytes"])
+    )
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(500, json={"error": {"statusCode": 500, "briefSummary": "Internal Server Error"}})
+    )
+
+    with pytest.raises(SignatureRecoveryRequiredError):
+        service.publish_generated_signature(
+            db=db_session,
+            firid=context["firma"].firid,
+            expected_revnum=context["firma"].revnum,
+            expected_participant_verlock=context["part"].verlock,
+        )
+
+    assert context["generated_artifact"].path.exists() is True
+    assert _event_count(db_session, context["firma"].firid, "PUBLICATION_COMPLETED") == 0
+
+
+@respx.mock
+def test_publication_verification_failure_preserves_signed_artifact(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    service = _publication_service(context["temp_service"], context["node_id"])
+    node_id = context["node_id"]
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, content=context["source_bytes"])
+    )
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "properties": {"cm:versionLabel": "1.1"},
+                    "versionComment": context["comment"],
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": "1.1",
+                    "nodeId": node_id,
+                    "versionComment": context["comment"],
+                    "createdAt": "2026-08-03T12:00:00Z",
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1/content").mock(
+        return_value=httpx.Response(500, text="Internal Error during download")
+    )
+
+    with pytest.raises((SignatureRecoveryRequiredError, SignatureUploadError)):
+        service.publish_generated_signature(
+            db=db_session,
+            firid=context["firma"].firid,
+            expected_revnum=context["firma"].revnum,
+            expected_participant_verlock=context["part"].verlock,
+        )
+
+    assert context["generated_artifact"].path.exists() is True
+    assert _event_count(db_session, context["firma"].firid, "PUBLICATION_COMPLETED") == 0
+
+
+@respx.mock
+def test_publication_hash_mismatch_preserves_signed_artifact(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    service = _publication_service(context["temp_service"], context["node_id"])
+    node_id = context["node_id"]
+    tampered_bytes = _make_pdf_bytes("Tampered Remote Content")
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, content=context["source_bytes"])
+    )
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "properties": {"cm:versionLabel": "1.1"},
+                    "versionComment": context["comment"],
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": "1.1",
+                    "nodeId": node_id,
+                    "versionComment": context["comment"],
+                    "createdAt": "2026-08-03T12:00:00Z",
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1/content").mock(
+        return_value=httpx.Response(200, content=tampered_bytes)
+    )
+
+    with pytest.raises(SignatureIntegrityError):
+        service.publish_generated_signature(
+            db=db_session,
+            firid=context["firma"].firid,
+            expected_revnum=context["firma"].revnum,
+            expected_participant_verlock=context["part"].verlock,
+        )
+
+    assert context["generated_artifact"].path.exists() is True
+    assert _event_count(db_session, context["firma"].firid, "PUBLICATION_COMPLETED") == 0
+
+
+@respx.mock
+def test_publication_verified_success_deletes_signed_artifact(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    service = _publication_service(context["temp_service"], context["node_id"])
+    node_id = context["node_id"]
+    generated_bytes = context["generated_artifact"].path.read_bytes()
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, content=context["source_bytes"])
+    )
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "properties": {"cm:versionLabel": "1.1"},
+                    "versionComment": context["comment"],
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": "1.1",
+                    "nodeId": node_id,
+                    "versionComment": context["comment"],
+                    "createdAt": "2026-08-03T12:00:00Z",
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1/content").mock(
+        return_value=httpx.Response(200, content=generated_bytes)
+    )
+
+    result = service.publish_generated_signature(
+        db=db_session,
+        firid=context["firma"].firid,
+        expected_revnum=context["firma"].revnum,
+        expected_participant_verlock=context["part"].verlock,
+    )
+
+    assert result.version_id == "1.1"
+    assert context["generated_artifact"].path.exists() is False
+    assert _event_count(db_session, context["firma"].firid, "PUBLICATION_COMPLETED") == 1
+
+
+@respx.mock
+def test_publication_finalize_failure_preserves_artifact_for_reconciliation(db_session, tmp_path, monkeypatch):
+    context = _seed_publication_context(db_session, tmp_path)
+    service = _publication_service(context["temp_service"], context["node_id"])
+    node_id = context["node_id"]
+    generated_bytes = context["generated_artifact"].path.read_bytes()
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, content=context["source_bytes"])
+    )
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "properties": {"cm:versionLabel": "1.1"},
+                    "versionComment": context["comment"],
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": "1.1",
+                    "nodeId": node_id,
+                    "versionComment": context["comment"],
+                    "createdAt": "2026-08-03T12:00:00Z",
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1/content").mock(
+        return_value=httpx.Response(200, content=generated_bytes)
+    )
+
+    def _fail_finalize(*args, **kwargs):
+        raise RuntimeError("Database error during local finalization")
+
+    monkeypatch.setattr(service, "_finalize_verified_signature", _fail_finalize)
+
+    with pytest.raises(RuntimeError, match="Database error during local finalization"):
+        service.publish_generated_signature(
+            db=db_session,
+            firid=context["firma"].firid,
+            expected_revnum=context["firma"].revnum,
+            expected_participant_verlock=context["part"].verlock,
+        )
+
+    # Artifact must be preserved so reconciliation can finalize it later!
+    assert context["generated_artifact"].path.exists() is True
+    assert _event_count(db_session, context["firma"].firid, "PUBLICATION_COMPLETED") == 0

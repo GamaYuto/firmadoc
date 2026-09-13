@@ -418,6 +418,7 @@ class AlfrescoLabClient(AlfrescoClientProtocol):
         size_bytes = 0
         try:
             if response.status_code >= 400:
+                response.read()
                 self._raise_for_status(response.status_code, response, not_found_conflict=True)
 
             response_mime = response.headers.get("content-type", "").split(";")[0].strip().lower()
