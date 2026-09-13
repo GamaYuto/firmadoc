@@ -1,8 +1,14 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
+from pathlib import Path
+import logging
 import re
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+
+from app.services.temporary_artifact_service import TemporaryArtifactService, temporary_artifact_service
+
+logger = logging.getLogger(__name__)
 
 from app.models.docfirma import DocFirma, EstadoDocFirma, TipoFirma
 from app.models.firpos import Firpos
@@ -29,6 +35,9 @@ from app.services.signature_exceptions import (
 )
 
 class SignatureService:
+
+    def __init__(self, artifact_service: Optional[TemporaryArtifactService] = None) -> None:
+        self.artifact_service = artifact_service or temporary_artifact_service
 
     def reserve_signature_attempt(
         self,
@@ -575,7 +584,16 @@ class SignatureService:
             usrid=actor.usrid,
             detalle=f"Intento de firma cancelado. Motivo: {motivo}"
         )
+
         return new_rev
+
+    def cleanup_attempt_artifacts(self, firid: int) -> list[Path]:
+        """Elimina físicamente los artefactos temporales de un intento tras confirmarse la transacción."""
+        cleaned: list[Path] = []
+        for p in self.artifact_service.find_matching_paths(prefix=f"fir-{firid}-"):
+            self.artifact_service.cleanup_path(p)
+            cleaned.append(p)
+        return cleaned
 
     def mark_signature_conflict(
         self,

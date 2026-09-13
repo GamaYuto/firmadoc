@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from app.services.alfresco_client import AlfrescoClient
+from app.services.temporary_artifact_service import TemporaryArtifactService, temporary_artifact_service
 from app.crud.crud_docfir import create_documento, get_active_by_node_version, cancel_documento, get_by_id, mark_error
 from app.crud.crud_audifir import create_evento
 from app.models.docfir import DocFir, EstadoDoc
@@ -13,8 +14,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DocumentService:
-    def __init__(self, alfresco_client: AlfrescoClient):
+    def __init__(self, alfresco_client: AlfrescoClient, artifact_service: Optional[TemporaryArtifactService] = None):
         self.alfresco_client = alfresco_client
+        self.artifact_service = artifact_service or temporary_artifact_service
 
     async def iniciar_proceso(self, db: Session, node_id: UUID, usrcre: str, ip: str) -> DocFir:
         temp_path = None
@@ -104,7 +106,15 @@ class DocumentService:
             if not docfir:
                 raise HTTPException(status_code=404, detail="Proceso no encontrado")
                 
-            if docfir.estado not in (EstadoDoc.BORRADOR.value, EstadoDoc.EN_CURSO.value):
+            cancelable_states = (
+                EstadoDoc.BORRADOR.value,
+                EstadoDoc.EN_CURSO.value,
+                EstadoDoc.PENDIENTE_FIRMA.value,
+                EstadoDoc.FIRMADO_PARCIAL.value,
+                EstadoDoc.PENDIENTE_PUBLICACION.value,
+                EstadoDoc.ERROR_PUBLICACION.value,
+            )
+            if docfir.estado not in cancelable_states:
                 raise HTTPException(status_code=400, detail=f"No se puede cancelar un proceso en estado {docfir.estado}")
                 
             cancel_documento(db, docfir, usrmod)
@@ -121,6 +131,14 @@ class DocumentService:
             
             db.commit()
             db.refresh(docfir)
+
+            # Limpiar artefactos temporales de firmas del proceso cancelado
+            try:
+                for firma in docfir.docfirmas or []:
+                    for p in self.artifact_service.find_matching_paths(prefix=f"fir-{firma.firid}-"):
+                        self.artifact_service.cleanup_path(p)
+            except Exception as clean_err:
+                logger.warning(f"Error limpiando artefactos temporales tras cancelar proceso {docid}: {clean_err}")
             return docfir
         except HTTPException:
             db.rollback()
