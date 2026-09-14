@@ -460,6 +460,8 @@ class AlfrescoLabClient(AlfrescoClientProtocol):
                 raise SignaturePayloadError("No fue posible abrir el PDF remoto") from exc
 
             mime_type = expected_mime_type or "application/pdf"
+            raw_etag = response.headers.get("etag")
+            etag = raw_etag.strip() if isinstance(raw_etag, str) and raw_etag.strip() else None
             return AlfrescoDownloadedArtifact(
                 node_id=node_id,
                 version_id=version_id,
@@ -467,6 +469,7 @@ class AlfrescoLabClient(AlfrescoClientProtocol):
                 sha256=sha256.hexdigest(),
                 size_bytes=size_bytes,
                 mime_type=mime_type,
+                etag=etag,
             )
         except SignatureError:
             self._cleanup_path(destination)
@@ -1346,7 +1349,11 @@ class AlfrescoService:
         snapshot: _PublicationSnapshot,
         *,
         cleanup_generated_on_success: bool,
+        precondition: str | None = None,
     ) -> AlfrescoUploadResult:
+        if not precondition:
+            raise SignatureConcurrencyError("No fue posible obtener la precondicion ETag del nodo remoto")
+
         generated_pdf_path: Path | None = snapshot.generated_path
         version_pdf_path: Path | None = None
         conflict_recorded = False
@@ -1361,6 +1368,7 @@ class AlfrescoService:
                 source_path=snapshot.generated_path,
                 major_version=self.major_version,
                 comment=self._build_comment(snapshot),
+                precondition=precondition,
             )
 
             if upload_result.status_code in (401, 403):
@@ -1405,6 +1413,7 @@ class AlfrescoService:
 
             version_pdf_path = self.artifact_service.create_path(prefix=f"alfresco-{snapshot.firid}-version-", suffix=".pdf")
             version_artifact = self.client.download_version_content(snapshot.node_id, resolved_version.version_id, version_pdf_path)
+
             if version_artifact.sha256.lower() != snapshot.hasfin.lower():
                 self._mark_conflict(
                     db,
@@ -1454,6 +1463,7 @@ class AlfrescoService:
             self._record_recovery_event(db, snapshot, "Se requiere reconciliacion por timeout")
             raise SignatureRecoveryRequiredError("Se requiere reconciliacion despues de timeout")
         except SignatureVersionConflictError:
+            self._record_publication_event(db, snapshot, "PUBLICATION_REMOTE_CONFLICT", "Conflicto remoto durante la publicacion")
             if not conflict_recorded:
                 try:
                     self._mark_conflict(
@@ -1495,12 +1505,16 @@ class AlfrescoService:
         snapshot = self._load_publication_snapshot(db, firid, expected_revnum, expected_participant_verlock)
         current_pdf_path: Path | None = None
         try:
-            _validation, _remote_node, current_artifact = self._run_publication_preflight(db, snapshot)
+            _validation, remote_node, current_artifact = self._run_publication_preflight(db, snapshot)
             current_pdf_path = current_artifact.path
+            precondition = current_artifact.etag or remote_node.etag
             if not self.write_enabled:
                 self._record_publication_event(db, snapshot, "PUBLICATION_BLOCKED_WRITE_DISABLED", "Publicacion bloqueada por interruptor")
                 raise SignatureWriteDisabledError(operation_id=str(snapshot.opeid), source_version=snapshot.verori)
-            return self._upload_and_verify_snapshot(db, snapshot, cleanup_generated_on_success=True)
+            if not precondition:
+                self._record_publication_event(db, snapshot, "PUBLICATION_REMOTE_CONFLICT", "Falta precondicion ETag remota")
+                raise SignatureConcurrencyError("No fue posible obtener la precondicion ETag del nodo remoto")
+            return self._upload_and_verify_snapshot(db, snapshot, cleanup_generated_on_success=True, precondition=precondition)
         finally:
             self._cleanup_path(current_pdf_path)
 
@@ -1515,13 +1529,17 @@ class AlfrescoService:
         snapshot = self._load_document_publication_snapshot(db, docid, actor_user, iporig, user_agent)
         current_pdf_path: Path | None = None
         try:
-            _validation, _remote_node, current_artifact = self._run_publication_preflight(db, snapshot)
+            _validation, remote_node, current_artifact = self._run_publication_preflight(db, snapshot)
             current_pdf_path = current_artifact.path
+            precondition = current_artifact.etag or remote_node.etag
             if not self.write_enabled:
                 self._record_publication_event(db, snapshot, "PUBLICATION_BLOCKED_WRITE_DISABLED", "Publicacion bloqueada por interruptor")
                 raise SignatureWriteDisabledError(operation_id=str(snapshot.opeid), source_version=snapshot.verori)
+            if not precondition:
+                self._record_publication_event(db, snapshot, "PUBLICATION_REMOTE_CONFLICT", "Falta precondicion ETag remota")
+                self._raise_publication(snapshot, "No fue posible obtener la precondicion ETag del nodo remoto", code="REMOTE_PRECONDITION_MISSING")
 
-            upload = self._upload_and_verify_snapshot(db, snapshot, cleanup_generated_on_success=True)
+            upload = self._upload_and_verify_snapshot(db, snapshot, cleanup_generated_on_success=True, precondition=precondition)
             return PublicationOutcome(
                 status="PUBLISHED",
                 operation_id=str(snapshot.opeid),
@@ -1535,6 +1553,8 @@ class AlfrescoService:
             raise
         except SignaturePublicationError:
             raise
+        except SignatureConcurrencyError as exc:
+            self._raise_publication(snapshot, str(exc), code="REMOTE_PRECONDITION_MISSING")
         except SignatureVersionConflictError as exc:
             self._raise_publication(snapshot, str(exc), code="REMOTE_VERSION_CONFLICT")
         except SignatureIntegrityError as exc:

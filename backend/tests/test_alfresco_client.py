@@ -446,6 +446,37 @@ def test_download_current_content_success(alfresco_client: AlfrescoLabClient, tm
 
 
 @respx.mock
+def test_download_current_content_captures_exact_etag_with_quotes(alfresco_client: AlfrescoLabClient, tmp_path: Path):
+    node_id = "node-etag-test"
+    pdf_bytes = _make_pdf_bytes("Current ETag")
+    pdf_path = tmp_path / "downloaded_etag.pdf"
+    expected_etag = '"1786048128957"'
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "documento.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(pdf_bytes)},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, headers={"ETag": expected_etag}, content=pdf_bytes)
+    )
+
+    artifact = alfresco_client.download_current_content(node_id, pdf_path)
+
+    assert artifact.etag == expected_etag
+
+
+@respx.mock
 def test_download_current_content_rejects_bad_mime(alfresco_client: AlfrescoLabClient, tmp_path: Path):
     node_id = "node-bad-mime"
     respx.get(f"{API_URL}/nodes/{node_id}").mock(
@@ -553,6 +584,62 @@ def test_update_content_as_new_version_success(alfresco_client: AlfrescoLabClien
     assert result.status_code == 200
     assert result.etag == '"etag-upload"'
     assert result.remote_message == comment
+
+
+@respx.mock
+def test_update_content_as_new_version_with_precondition_header(alfresco_client: AlfrescoLabClient, tmp_path: Path):
+    node_id = "node-upload-precondition"
+    pdf_bytes = _make_pdf_bytes("Upload Precondition")
+    source_path = tmp_path / "upload_precondition.pdf"
+    source_path.write_bytes(pdf_bytes)
+    comment = "FirmaDoc:1:1:ope-1"
+    expected_etag = '"1786048128957"'
+
+    def _response(request: httpx.Request) -> httpx.Response:
+        assert request.headers["If-Match"] == expected_etag
+        assert request.url.params["majorVersion"] == "false"
+        assert request.url.params["comment"] == comment
+        return httpx.Response(
+            200,
+            headers={"etag": '"etag-new"'},
+            json={
+                "entry": {
+                    "id": node_id,
+                    "properties": {"cm:versionLabel": "1.1"},
+                    "versionComment": comment,
+                }
+            },
+        )
+
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(side_effect=_response)
+
+    result = alfresco_client.update_content_as_new_version(
+        node_id=node_id,
+        source_path=source_path,
+        major_version=False,
+        comment=comment,
+        precondition=expected_etag,
+    )
+
+    assert result.status_code == 200
+    assert result.etag == '"etag-new"'
+
+
+@respx.mock
+def test_update_content_as_new_version_precondition_failed_412(alfresco_client: AlfrescoLabClient, tmp_path: Path):
+    node_id = "node-conflict-412"
+    source_path = tmp_path / "conflict_412.pdf"
+    source_path.write_bytes(_make_pdf_bytes("Conflict 412"))
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(return_value=httpx.Response(412))
+
+    with pytest.raises(SignatureVersionConflictError):
+        alfresco_client.update_content_as_new_version(
+            node_id=node_id,
+            source_path=source_path,
+            major_version=False,
+            comment="FirmaDoc:1:1:ope-1",
+            precondition='"1786048128957"',
+        )
 
 
 @respx.mock

@@ -65,6 +65,7 @@ class AlfrescoDownloadedArtifact:
     sha256: str
     size_bytes: int
     mime_type: str
+    etag: Optional[str] = None
 
 
 @dataclass(frozen=True, slots=True)
