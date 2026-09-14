@@ -38,6 +38,35 @@ def _make_pdf_bytes(text: str = "FirmaDoc") -> bytes:
     document.close()
     return data
 
+from starlette.testclient import TestClient
+from app.main import app
+from app.core.security import create_session_token, AuthenticatedPrincipal
+
+@pytest.fixture
+def client():
+    with TestClient(app) as test_client:
+        token = create_session_token(AuthenticatedPrincipal(
+            user_id="gestor",
+            nombre_completo="Gestor Alfresco",
+            correo="gestor@empresa.local",
+            roles=("GESTOR",),
+        ))
+        test_client.cookies[settings.FIRMADOC_SESSION_COOKIE_NAME] = token
+        yield test_client
+
+# 0. Verificación de cierre de proxy anónimo (401)
+def test_alfresco_node_metadata_unauthenticated():
+    with TestClient(app) as unauth_client:
+        node_id = str(uuid4())
+        response = unauth_client.get(f"/api/alfresco/nodes/{node_id}")
+        assert response.status_code == 401
+
+def test_alfresco_node_content_unauthenticated():
+    with TestClient(app) as unauth_client:
+        node_id = str(uuid4())
+        response = unauth_client.get(f"/api/alfresco/nodes/{node_id}/content")
+        assert response.status_code == 401
+
 # 1. nodeId con UUID inválido
 def test_get_node_metadata_invalid_uuid(client):
     response = client.get("/api/alfresco/nodes/invalid-uuid")

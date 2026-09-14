@@ -11,10 +11,14 @@ from app.core.database import get_db
 from app.schemas.firma_frontend import (
     HandwrittenSignatureConfirm,
     InternalSignatureConfirm,
+    MobileSessionDetail,
+    MobileSignatureConfirm,
     PendingList,
     PreparationDraftSave,
     PreparationRead,
     PublicationResponse,
+    QrSessionCreateResponse,
+    QrSessionStatusResponse,
     SendToSignatureResponse,
     SignatureDetail,
     SignatureResult,
@@ -22,19 +26,11 @@ from app.schemas.firma_frontend import (
 from app.services.alfresco_service import AlfrescoService
 from app.services.signature_exceptions import SignaturePublicationError
 from app.services.frontend_signature_service import frontend_signature_service
+from app.services.qr_service import qr_service
+
+from app.core.security import AuthenticatedPrincipal, get_current_principal
 
 router = APIRouter()
-
-
-def get_current_user(x_firmadoc_user: str | None = Header(default=None, min_length=1, max_length=60)) -> str:
-    if not settings.FIRMADOC_LAB_IDENTITY_ENABLED:
-        raise HTTPException(status_code=503, detail="Identidad de laboratorio deshabilitada; configure identidad por proxy")
-    if x_firmadoc_user is None:
-        raise HTTPException(status_code=401, detail="Identidad de laboratorio requerida")
-    user = x_firmadoc_user.strip().lower()
-    if not user:
-        raise HTTPException(status_code=400, detail="X-FirmaDoc-User invalido")
-    return user
 
 
 def client_ip(request: Request) -> str:
@@ -60,16 +56,16 @@ async def get_or_create_preparation(
     node_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    return await frontend_signature_service.get_or_create_preparation(db, node_id, user, client_ip(request))
+    return await frontend_signature_service.get_or_create_preparation(db, node_id, principal.user_id, client_ip(request))
 
 
 @router.get("/preparacion/doc/{docid}", response_model=PreparationRead)
 async def get_preparation_by_doc(
     docid: int,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
     return await frontend_signature_service.refresh_preparation(db, docid)
 
@@ -80,9 +76,9 @@ async def save_preparation_draft(
     payload: PreparationDraftSave,
     request: Request,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    return await frontend_signature_service.save_draft(db, docid, payload, user, client_ip(request))
+    return await frontend_signature_service.save_draft(db, docid, payload, principal.user_id, client_ip(request))
 
 
 @router.post("/preparacion/{docid}/enviar", response_model=SendToSignatureResponse)
@@ -90,9 +86,9 @@ def send_preparation_to_signature(
     docid: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    return frontend_signature_service.send_to_signature(db, docid, user, client_ip(request))
+    return frontend_signature_service.send_to_signature(db, docid, principal.user_id, client_ip(request))
 
 
 @router.post("/preparacion/{docid}/guardar-enviar", response_model=SendToSignatureResponse)
@@ -101,17 +97,17 @@ async def save_and_send_preparation_to_signature(
     payload: PreparationDraftSave,
     request: Request,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    return await frontend_signature_service.save_and_send(db, docid, payload, user, client_ip(request))
+    return await frontend_signature_service.save_and_send(db, docid, payload, principal.user_id, client_ip(request))
 
 
 @router.get("/pendientes", response_model=PendingList)
 def list_pending_signatures(
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    items = frontend_signature_service.list_pending(db, user)
+    items = frontend_signature_service.list_pending(db, principal.user_id)
     return PendingList(items=items, total=len(items))
 
 
@@ -119,9 +115,9 @@ def list_pending_signatures(
 def get_signature_detail(
     firid: int,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    return frontend_signature_service.get_signature_detail(db, firid, user)
+    return frontend_signature_service.get_signature_detail(db, firid, principal.user_id)
 
 
 @router.post("/firmas/{firid}/confirmar-interna", response_model=SignatureResult)
@@ -130,11 +126,11 @@ async def confirm_internal_signature(
     payload: InternalSignatureConfirm,
     request: Request,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
     if payload.confirm is not True:
         raise HTTPException(status_code=400, detail="Debe confirmar la firma electronica")
-    return await frontend_signature_service.confirm_internal(db, firid, user, client_ip(request))
+    return await frontend_signature_service.confirm_internal(db, firid, principal.user_id, client_ip(request))
 
 
 @router.post("/firmas/{firid}/confirmar-manuscrita", response_model=SignatureResult)
@@ -143,27 +139,27 @@ async def confirm_handwritten_signature(
     payload: HandwrittenSignatureConfirm,
     request: Request,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    return await frontend_signature_service.confirm_handwritten(db, firid, payload.png_data_url, user, client_ip(request))
+    return await frontend_signature_service.confirm_handwritten(db, firid, payload.png_data_url, principal.user_id, client_ip(request))
 
 
 @router.get("/firmas/{firid}/resultado", response_model=SignatureResult)
 def get_signature_result(
     firid: int,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    return frontend_signature_service.get_result(db, firid, user)
+    return frontend_signature_service.get_result(db, firid, principal.user_id)
 
 
 @router.get("/firmas/{firid}/resultado/pdf", include_in_schema=False)
 def get_signature_result_pdf(
     firid: int,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    path, filename = frontend_signature_service.get_result_pdf_path(db, firid, user)
+    path, filename = frontend_signature_service.get_result_pdf_path(db, firid, principal.user_id)
     return FileResponse(path, media_type="application/pdf", filename=filename)
 
 
@@ -172,7 +168,7 @@ def publish_document_to_alfresco(
     docid: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: str = Depends(get_current_user),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
     user_agent = request.headers.get("user-agent")
     service = AlfrescoService()
@@ -180,7 +176,7 @@ def publish_document_to_alfresco(
         outcome = service.publish_document(
             db=db,
             docid=docid,
-            actor_user=user,
+            actor_user=principal.user_id,
             iporig=client_ip(request),
             user_agent=user_agent,
         )
@@ -195,4 +191,76 @@ def publish_document_to_alfresco(
         message=outcome.message,
         final_version=outcome.final_version,
         final_hash_short=outcome.final_hash_short,
+    )
+
+
+@router.post("/firmas/{firid}/qr", response_model=QrSessionCreateResponse)
+def create_signature_qr_session(
+    firid: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    sesid, token, fecexp = qr_service.crear_sesion_qr(
+        db=db,
+        firid=firid,
+        usrid=principal.user_id,
+        iporig=client_ip(request),
+    )
+    return QrSessionCreateResponse(
+        sesid=sesid,
+        token=token,
+        qr_url=f"/firma-movil/{token}",
+        expires_in=600,
+        expires_at=fecexp.isoformat(),
+    )
+
+
+@router.get("/qr/{sesid}/estado", response_model=QrSessionStatusResponse)
+def get_qr_session_status(
+    sesid: int,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    estado = qr_service.consultar_estado_qr(db, sesid)
+    return QrSessionStatusResponse(sesid=sesid, estado=estado)
+
+
+@router.get("/movil/sesion/{token}", response_model=MobileSessionDetail)
+def get_mobile_session_detail(
+    token: str,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    sesion = qr_service.obtener_sesion_movil(db, token)
+    if sesion.usrid.lower() != principal.user_id.strip().lower():
+        raise HTTPException(
+            status_code=403,
+            detail=f"Usuario autenticado ({principal.user_id}) no corresponde al firmante asignado ({sesion.usrid})",
+        )
+    firma = sesion.firma
+    doc = sesion.documento
+    return MobileSessionDetail(
+        token=token,
+        docnom=doc.docnom if doc else "Documento",
+        usrid=sesion.usrid,
+        tipfir=firma.tipfir if firma else "MANUSCRITA",
+        docid=sesion.docid,
+        firid=sesion.firid,
+    )
+
+
+@router.post("/movil/confirmar", response_model=SignatureResult)
+async def confirm_mobile_signature(
+    payload: MobileSignatureConfirm,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    return await qr_service.completar_firma_movil(
+        db=db,
+        raw_token=payload.token,
+        png_data_url=payload.png_data_url,
+        mobile_user_id=principal.user_id,
+        iporig=client_ip(request),
     )

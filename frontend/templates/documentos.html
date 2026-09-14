@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FirmaDoc | Documentos Alfresco</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css">
+    <style>
+      .explorer-container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 1.5rem;
+      }
+      .search-box {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+      .search-box input {
+        flex: 1;
+        padding: 0.6rem 1rem;
+        border-radius: 6px;
+        border: 1px solid #ced4da;
+      }
+      .folder-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+      .folder-card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .folder-card:hover {
+        background: #e2e6ea;
+        border-color: #0d6efd;
+      }
+      .folder-icon {
+        font-size: 1.5rem;
+      }
+      .table-docs {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">FirmaDoc</div>
+      <div class="header-meta">
+        <a class="btn btn-outline-light btn-sm" href="/pendientes">Mis Pendientes</a>
+        <span class="status-pill lab-mode">MODO LABORATORIO</span>
+        <label>Usuario <input data-user-input type="text" autocomplete="off"></label>
+        <button id="refreshButton" class="btn" type="button">Actualizar</button>
+      </div>
+    </header>
+
+    <main class="explorer-container">
+      <div id="alerts" aria-live="polite"></div>
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Documentos de Alfresco</h2>
+        <span id="currentPathText" class="text-muted small">Cargando ubicación...</span>
+      </div>
+
+      <form id="searchForm" class="search-box">
+        <input id="searchInput" type="text" placeholder="Buscar documento PDF por nombre en Alfresco..." autocomplete="off">
+        <button type="submit" class="btn btn-primary">Buscar</button>
+        <button id="clearSearchButton" type="button" class="btn btn-secondary" hidden>Limpiar</button>
+      </form>
+
+      <section id="foldersSection" class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h4 class="h5 mb-0">Carpetas</h4>
+          <button id="upFolderButton" type="button" class="btn btn-outline-secondary btn-sm" hidden>Subir nivel</button>
+        </div>
+        <div id="folderList" class="folder-grid">
+          <p class="text-muted">Cargando carpetas...</p>
+        </div>
+      </section>
+
+      <section id="documentsSection">
+        <h4 class="h5 mb-2">Documentos PDF</h4>
+        <div class="table-responsive table-docs">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Nombre</th>
+                <th>Versión</th>
+                <th>Tamaño</th>
+                <th>Modificado</th>
+                <th class="text-end">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="documentList">
+              <tr>
+                <td colspan="5" class="text-center py-4 text-muted">Cargando documentos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+    <script type="module" src="/static/js/documentos.js"></script>
+  </body>
+</html>

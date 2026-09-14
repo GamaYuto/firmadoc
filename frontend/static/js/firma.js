@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchBinary, escapeText, getCurrentUser, parseFirmaIdFromPath, setBusy, showAlert } from "./api.js";
+import { apiFetch, apiFetchBinary, escapeText, parseFirmaIdFromPath, setBusy, showAlert, setSessionUser, getCurrentUser } from "./api.js";
 import { PdfViewer } from "./pdf-viewer.js";
 import { isPngDataUrlWithinLimit, pngDataUrlBinarySize } from "./signature-utils.js";
 import { getPublicationControlState, getPublicationErrorAlertType, isLocalResultReady, isSignatureAttemptActive } from "./workflow-state.js";
@@ -21,6 +21,16 @@ const confirmButton = document.querySelector("#confirmButton");
 const zoomInput = document.querySelector("#zoomSelect");
 const resultPanel = document.querySelector("#resultPanel");
 
+// QR modal elements
+const openQrButton = document.querySelector("#openQrButton");
+const qrModal = document.querySelector("#qrModal");
+const closeQrModal = document.querySelector("#closeQrModal");
+const cancelQrButton = document.querySelector("#cancelQrButton");
+const qrContainer = document.querySelector("#qrContainer");
+const qrCountdown = document.querySelector("#qrCountdown");
+const qrStatusText = document.querySelector("#qrStatusText");
+const qrDirectLink = document.querySelector("#qrDirectLink");
+
 let detail = null;
 let viewer = null;
 let signaturePad = null;
@@ -28,16 +38,31 @@ let lastPreviewDataUrl = null;
 let resizeHandler = null;
 let resultPdfUrl = null;
 
+let qrPollingInterval = null;
+let qrCountdownInterval = null;
+let currentQrSessionId = null;
+
+
 init().catch((error) => showAlert(alertBox, "danger", error.message));
 
 async function init() {
   if (!firid) throw new Error("Identificador de firma invalido");
-  userInput.value = params.get("user") || "firmante";
+  const user = params.get("user") || "firmante";
+  if (userInput) {
+    userInput.value = user;
+    userInput.addEventListener("change", async () => {
+      const newUser = userInput.value.trim();
+      if (newUser) {
+        await setSessionUser(newUser);
+        await loadSignature();
+      }
+    });
+  }
+  await setSessionUser(user);
   viewer = new PdfViewer({
     container: document.querySelector("#pdfContainer"),
     thumbs: document.querySelector("#thumbs"),
     status: pageStatus,
-    userProvider: getCurrentUser,
     editable: false,
   });
   bindControls();
@@ -59,7 +84,11 @@ function bindControls() {
     renderPreview();
   });
   confirmButton.addEventListener("click", confirmSignature);
+  openQrButton?.addEventListener("click", openQrModal);
+  closeQrModal?.addEventListener("click", closeQrModalView);
+  cancelQrButton?.addEventListener("click", closeQrModalView);
 }
+
 
 async function loadSignature() {
   cleanupSignature();
@@ -293,6 +322,7 @@ function renderResult(result) {
 }
 
 function cleanupSignature() {
+  closeQrModalView();
   if (signaturePad) {
     signaturePad.off();
     signaturePad.clear();
@@ -303,4 +333,93 @@ function cleanupSignature() {
     resizeHandler = null;
   }
   lastPreviewDataUrl = null;
+}
+
+async function openQrModal() {
+  if (!firid) return;
+  try {
+    setBusy(openQrButton, true, "Generando QR");
+    const qrData = await apiFetch(`/api/firma/firmas/${firid}/qr`, {
+      method: "POST",
+      user: getCurrentUser("firmante"),
+    });
+    currentQrSessionId = qrData.sesid;
+    qrContainer.innerHTML = "";
+    const absoluteQrUrl = new URL(qrData.qr_url, window.location.origin).href;
+    if (window.QRCode) {
+      new window.QRCode(qrContainer, {
+        text: absoluteQrUrl,
+        width: 192,
+        height: 192,
+        correctLevel: window.QRCode.CorrectLevel.M,
+      });
+    } else {
+      qrContainer.textContent = "Librería QR no cargada";
+    }
+    qrDirectLink.href = absoluteQrUrl;
+    qrStatusText.textContent = "Esperando firma desde el móvil...";
+
+
+    // Countdown timer
+    const expTime = new Date(qrData.expires_at).getTime();
+    if (qrCountdownInterval) clearInterval(qrCountdownInterval);
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.floor((expTime - Date.now()) / 1000));
+      const mins = String(Math.floor(remaining / 60)).padStart(2, "0");
+      const secs = String(remaining % 60).padStart(2, "0");
+      qrCountdown.textContent = `${mins}:${secs}`;
+      if (remaining <= 0) {
+        clearInterval(qrCountdownInterval);
+        qrCountdownInterval = null;
+        qrStatusText.textContent = "La sesión QR ha expirado.";
+      }
+    };
+    updateCountdown();
+    qrCountdownInterval = window.setInterval(updateCountdown, 1000);
+
+    // Polling every 2500ms
+    if (qrPollingInterval) clearInterval(qrPollingInterval);
+    qrPollingInterval = window.setInterval(pollQrStatus, 2500);
+
+    qrModal.hidden = false;
+  } catch (error) {
+    showAlert(alertBox, "danger", error.message);
+  } finally {
+    setBusy(openQrButton, false);
+  }
+}
+
+function closeQrModalView() {
+  if (qrPollingInterval) {
+    clearInterval(qrPollingInterval);
+    qrPollingInterval = null;
+  }
+  if (qrCountdownInterval) {
+    clearInterval(qrCountdownInterval);
+    qrCountdownInterval = null;
+  }
+  if (qrModal) qrModal.hidden = true;
+  if (qrContainer) qrContainer.innerHTML = "";
+  currentQrSessionId = null;
+}
+
+async function pollQrStatus() {
+  if (!currentQrSessionId) return;
+  try {
+    const statusData = await apiFetch(`/api/firma/qr/${currentQrSessionId}/estado`, {
+      user: getCurrentUser("firmante"),
+    });
+    if (statusData.estado === "USADO") {
+      closeQrModalView();
+      showAlert(alertBox, "success", "Firma capturada y confirmada exitosamente desde el móvil.");
+      cleanupSignature();
+      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+      renderResult(result);
+    } else if (statusData.estado === "EXPIRADO" || statusData.estado === "CANCELADO") {
+      closeQrModalView();
+      showAlert(alertBox, "warning", "La sesión QR ha expirado o fue cancelada.");
+    }
+  } catch (err) {
+    console.warn("Error consultando estado QR:", err);
+  }
 }

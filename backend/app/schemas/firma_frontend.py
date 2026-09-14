@@ -202,3 +202,39 @@ class PublicationResponse(BaseModel):
     message: str
     final_version: Optional[str] = None
     final_hash_short: Optional[str] = None
+
+
+class QrSessionCreateResponse(BaseModel):
+    sesid: int
+    token: str
+    qr_url: str
+    expires_in: int
+    expires_at: str
+
+
+class QrSessionStatusResponse(BaseModel):
+    sesid: int
+    estado: str
+
+
+class MobileSessionDetail(BaseModel):
+    token: str
+    docnom: str
+    usrid: str
+    tipfir: str
+    docid: int
+    firid: int
+
+
+class MobileSignatureConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(..., min_length=16, max_length=100)
+    png_data_url: str = Field(..., min_length=32, max_length=900_000)
+
+    @field_validator("png_data_url")
+    @classmethod
+    def validate_data_url(cls, value: str) -> str:
+        if not value.startswith("data:image/png;base64,"):
+            raise ValueError("La firma debe enviarse como PNG en data URL")
+        return value

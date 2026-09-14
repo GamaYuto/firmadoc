@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from typing import Optional
 from uuid import UUID
 import os
 import re
@@ -14,6 +15,8 @@ from app.crud.crud_audifir import create_evento
 from app.core.database import get_db
 from sqlalchemy.orm import Session
 import logging
+
+from app.core.security import AuthenticatedPrincipal, get_current_principal
 
 logger = logging.getLogger(__name__)
 
@@ -62,24 +65,34 @@ def handle_alfresco_exceptions(e: Exception, db: Session, node_id: UUID, ip: str
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/nodes/{node_id}", response_model=NodeMetadata)
-async def get_node_metadata(node_id: UUID, request: Request, db: Session = Depends(get_db)):
+async def get_node_metadata(
+    node_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
     ip = request.client.host if request.client else None
     try:
         metadata = await client.get_node_metadata(node_id)
         if not metadata.is_file:
-            create_evento(db, evento="ALF_CONT_ERR", iporig=ip, detalle=f"Nodo no es archivo: {node_id}")
+            create_evento(db, evento="ALF_CONT_ERR", usrid=principal.user_id, iporig=ip, detalle=f"Nodo no es archivo: {node_id}")
             raise HTTPException(status_code=422, detail="El nodo solicitado no es un archivo")
         if not metadata.mime_type:
-            create_evento(db, evento="ALF_CONT_ERR", iporig=ip, detalle=f"Nodo sin mimeType: {node_id}")
+            create_evento(db, evento="ALF_CONT_ERR", usrid=principal.user_id, iporig=ip, detalle=f"Nodo sin mimeType: {node_id}")
             raise HTTPException(status_code=422, detail="El nodo no tiene un mimeType válido")
             
-        create_evento(db, evento="ALF_NODE_READ", iporig=ip, detalle=f"Metadatos consultados exitosamente: {node_id}")
+        create_evento(db, evento="ALF_NODE_READ", usrid=principal.user_id, iporig=ip, detalle=f"Metadatos consultados exitosamente: {node_id}")
         return metadata
     except Exception as e:
         handle_alfresco_exceptions(e, db, node_id, ip)
 
 @router.get("/nodes/{node_id}/content")
-async def get_node_content(node_id: UUID, request: Request, db: Session = Depends(get_db)):
+async def get_node_content(
+    node_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
     ip = request.client.host if request.client else None
     
     try:
@@ -102,6 +115,7 @@ async def get_node_content(node_id: UUID, request: Request, db: Session = Depend
         create_evento(
             db, 
             evento="ALF_PDF_DOWN", 
+            usrid=principal.user_id,
             iporig=ip, 
             detalle=f"nodeId: {node_id}, tamaño: {downloaded_size}, hash: {final_hash}, resultado: OK"
         )
@@ -128,3 +142,42 @@ async def get_node_content(node_id: UUID, request: Request, db: Session = Depend
         media_type="application/pdf",
         headers=headers
     )
+
+
+@router.get("/explorar")
+async def explore_alfresco_folder(
+    folder_id: Optional[str] = None,
+    skip_count: int = 0,
+    max_items: int = 100,
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    target_folder = folder_id
+    if not target_folder:
+        # Si no se especifica carpeta, intentar ubicar la carpeta de pruebas
+        if settings.FIRMADOC_ALFRESCO_TEST_NODE_ID:
+            try:
+                from uuid import UUID as PyUUID
+                test_meta = await client.get_node_metadata(PyUUID(settings.FIRMADOC_ALFRESCO_TEST_NODE_ID))
+                if test_meta and test_meta.parent_id:
+                    target_folder = test_meta.parent_id
+            except Exception:
+                target_folder = "-my-"
+        if not target_folder:
+            target_folder = "-my-"
+
+    try:
+        return await client.list_folder_children(target_folder, skip_count=skip_count, max_items=max_items)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Error al explorar carpeta de Alfresco: {str(exc)}") from exc
+
+
+@router.get("/buscar")
+async def search_alfresco_documents(
+    q: str,
+    max_items: int = 50,
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    try:
+        return await client.search_documents(q, max_items=max_items)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Error al buscar en Alfresco: {str(exc)}") from exc

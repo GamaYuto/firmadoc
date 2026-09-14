@@ -1,24 +1,69 @@
-export function getCurrentUser(defaultUser = "preparador") {
-  const input = document.querySelector("[data-user-input]");
-  const value = input?.value?.trim();
-  return value || defaultUser;
+let currentCsrfToken = null;
+
+export function getCsrfToken() {
+  return currentCsrfToken;
 }
 
-export function labIdentityHeaders(user) {
-  return { "X-FirmaDoc-User": user || getCurrentUser() };
+export function setCsrfToken(token) {
+  currentCsrfToken = token;
+}
+
+export async function setSessionUser(userId) {
+  const response = await fetch("/api/auth/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    throw new Error("No fue posible establecer la sesion");
+  }
+  const data = await response.json();
+  if (data && data.csrf_token) {
+    currentCsrfToken = data.csrf_token;
+  }
+  return data;
+}
+
+export async function getCurrentSession() {
+  try {
+    const response = await fetch("/api/auth/me", {
+      headers: { "Accept": "application/json" },
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const data = await response.json();
+    if (data && data.csrf_token) {
+      currentCsrfToken = data.csrf_token;
+    }
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 export async function apiFetch(path, options = {}) {
   const headers = new Headers(options.headers || {});
   headers.set("Accept", "application/json");
-  const identity = labIdentityHeaders(options.user || getCurrentUser());
-  for (const [key, value] of Object.entries(identity)) {
-    headers.set(key, value);
-  }
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(path, { ...options, headers });
+  const method = (options.method || "GET").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    if (!currentCsrfToken) {
+      await getCurrentSession();
+    }
+    if (currentCsrfToken && !headers.has("X-FirmaDoc-CSRF")) {
+      headers.set("X-FirmaDoc-CSRF", currentCsrfToken);
+    }
+  }
+  const response = await fetch(path, {
+    ...options,
+    headers,
+    credentials: options.credentials || "same-origin",
+  });
   if (!response.ok) {
     let message = "No fue posible completar la operacion";
     let detail = null;
@@ -50,11 +95,20 @@ export async function apiFetch(path, options = {}) {
 export async function apiFetchBinary(path, options = {}) {
   const headers = new Headers(options.headers || {});
   headers.set("Accept", options.accept || "application/pdf");
-  const identity = labIdentityHeaders(options.user || getCurrentUser());
-  for (const [key, value] of Object.entries(identity)) {
-    headers.set(key, value);
+  const method = (options.method || "GET").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    if (!currentCsrfToken) {
+      await getCurrentSession();
+    }
+    if (currentCsrfToken && !headers.has("X-FirmaDoc-CSRF")) {
+      headers.set("X-FirmaDoc-CSRF", currentCsrfToken);
+    }
   }
-  const response = await fetch(path, { ...options, headers });
+  const response = await fetch(path, {
+    ...options,
+    headers,
+    credentials: options.credentials || "same-origin",
+  });
   if (!response.ok) {
     let message = "No fue posible completar la operacion";
     let detail = null;
@@ -116,4 +170,9 @@ export function parseFirmaIdFromPath() {
 
 export function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+export function getCurrentUser(fallback = "usuario") {
+  const el = document.querySelector("[data-user-input]");
+  return el?.value?.trim() || fallback;
 }

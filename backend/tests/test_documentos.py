@@ -278,11 +278,15 @@ def test_cancelacion_proceso(client, base_url, db_session):
     resp_empty = client.post(f"/api/documentos/{docid}/cancelar", json={"motivo": ""}, headers={"X-FirmaDoc-User": "u1"})
     assert resp_empty.status_code == 422
     
-    # 21. Cancelación exitosa
-    resp_cancel = client.post(f"/api/documentos/{docid}/cancelar", json={"motivo": "Me equivoqué"}, headers={"X-FirmaDoc-User": "u2"})
+    # 21. Intento de cancelación por usuario ajeno no administrador (debe dar 403)
+    resp_unauth = client.post(f"/api/documentos/{docid}/cancelar", json={"motivo": "Intruso"}, headers={"X-FirmaDoc-User": "u2"})
+    assert resp_unauth.status_code == 403
+
+    # 21. Cancelación exitosa por administrador
+    resp_cancel = client.post(f"/api/documentos/{docid}/cancelar", json={"motivo": "Me equivoqué"}, headers={"X-FirmaDoc-User": "admin"})
     assert resp_cancel.status_code == 200
     assert resp_cancel.json()["estado"] == "CANCELADO"
-    assert resp_cancel.json()["usrmod"] == "u2"
+    assert resp_cancel.json()["usrmod"] == "admin"
     
     # 24. Auditoría DOC_CANCEL
     ev_cancel = db_session.query(Audifir).filter(Audifir.docid == docid, Audifir.evento == "DOC_CANCEL").first()
@@ -290,7 +294,7 @@ def test_cancelacion_proceso(client, base_url, db_session):
     assert "Me equivoqué" in ev_cancel.detalle
     
     # 23. Cancelar de nuevo
-    resp_re_cancel = client.post(f"/api/documentos/{docid}/cancelar", json={"motivo": "Otra vez"}, headers={"X-FirmaDoc-User": "u2"})
+    resp_re_cancel = client.post(f"/api/documentos/{docid}/cancelar", json={"motivo": "Otra vez"}, headers={"X-FirmaDoc-User": "admin"})
     assert resp_re_cancel.status_code == 400
 
 # 27. Ausencia de temporales (os.unlink)

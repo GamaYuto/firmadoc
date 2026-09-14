@@ -1,7 +1,13 @@
 from fastapi import APIRouter
-from app.api import health, alfresco, documentos, plantillas, firma_frontend
+from app.api import health, alfresco, documentos, plantillas, firma_frontend, auth
 
 api_router = APIRouter()
+
+api_router.include_router(
+    auth.router,
+    prefix="/auth",
+    tags=["auth"]
+)
 
 api_router.include_router(
     health.router,

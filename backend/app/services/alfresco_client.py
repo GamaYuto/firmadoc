@@ -151,3 +151,88 @@ class AlfrescoClient:
             raise AlfrescoError(f"Error inesperado al descargar: {str(e)}")
         finally:
             await client.aclose()
+
+    async def list_folder_children(self, folder_id: str = "-my-", skip_count: int = 0, max_items: int = 100) -> dict:
+        url = f"{self.base_url}/nodes/{folder_id}/children"
+        params = {
+            "skipCount": skip_count,
+            "maxItems": max_items,
+            "include": "properties,path",
+        }
+        async with httpx.AsyncClient(auth=self.auth, timeout=self.timeout, verify=self.verify) as client:
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json().get("list", {})
+                entries = data.get("entries", [])
+
+                folders = []
+                documents = []
+                for item in entries:
+                    entry = item.get("entry", {})
+                    props = entry.get("properties", {})
+                    content = entry.get("content", {})
+                    info = {
+                        "id": entry.get("id"),
+                        "name": entry.get("name", ""),
+                        "modified_at": entry.get("modifiedAt") or props.get("cm:modified"),
+                        "modified_by": entry.get("modifiedByUser", {}).get("displayName") or entry.get("modifiedByUser", {}).get("id") or props.get("cm:modifier"),
+                    }
+                    if entry.get("isFolder"):
+                        folders.append(info)
+                    elif entry.get("isFile"):
+                        info["size_bytes"] = content.get("sizeInBytes", 0)
+                        info["mime_type"] = content.get("mimeType", "")
+                        info["version_label"] = props.get("cm:versionLabel") or "1.0"
+                        if info["mime_type"] == "application/pdf" or info["name"].lower().endswith(".pdf"):
+                            documents.append(info)
+
+                return {
+                    "folder_id": folder_id,
+                    "folders": sorted(folders, key=lambda x: x["name"].lower()),
+                    "documents": sorted(documents, key=lambda x: x["name"].lower()),
+                    "pagination": data.get("pagination", {}),
+                }
+            except httpx.HTTPError as e:
+                self._handle_error(e)
+
+    async def search_documents(self, term: str, max_items: int = 50) -> list[dict]:
+        term_clean = term.strip()
+        if not term_clean:
+            return []
+        url = f"{self.base_url}/queries/nodes"
+        params = {
+            "term": term_clean,
+            "nodeType": "cm:content",
+            "maxItems": max_items,
+            "include": "properties,path",
+        }
+        async with httpx.AsyncClient(auth=self.auth, timeout=self.timeout, verify=self.verify) as client:
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json().get("list", {})
+                entries = data.get("entries", [])
+
+                results = []
+
+                for item in entries:
+                    entry = item.get("entry", {})
+                    props = entry.get("properties", {})
+                    content = entry.get("content", {})
+                    name = entry.get("name", "")
+                    mime = content.get("mimeType", "")
+                    if mime == "application/pdf" or name.lower().endswith(".pdf"):
+                        results.append({
+                            "id": entry.get("id"),
+                            "name": name,
+                            "size_bytes": content.get("sizeInBytes", 0),
+                            "mime_type": mime,
+                            "version_label": props.get("cm:versionLabel") or "1.0",
+                            "modified_at": entry.get("modifiedAt") or props.get("cm:modified"),
+                            "modified_by": entry.get("modifiedByUser", {}).get("displayName") or entry.get("modifiedByUser", {}).get("id"),
+                            "path": entry.get("path", {}).get("name") if isinstance(entry.get("path"), dict) else None,
+                        })
+                return results
+            except httpx.HTTPError as e:
+                self._handle_error(e)

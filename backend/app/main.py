@@ -36,6 +36,11 @@ def _frontend_file(name: str) -> FileResponse:
     return FileResponse(path)
 
 
+@app.get("/documentos", include_in_schema=False)
+async def documents_page():
+    return _frontend_file("documentos.html")
+
+
 @app.get("/documentos/preparar", include_in_schema=False)
 async def preparation_page():
     return _frontend_file("preparar.html")
@@ -49,3 +54,8 @@ async def signature_page(firid: int):
 @app.get("/pendientes", include_in_schema=False)
 async def pending_page():
     return _frontend_file("pendientes.html")
+
+
+@app.get("/firma-movil/{token}", include_in_schema=False)
+async def mobile_signature_page(token: str):
+    return _frontend_file("firma_movil.html")

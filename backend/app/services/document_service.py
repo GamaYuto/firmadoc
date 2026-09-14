@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -8,7 +10,7 @@ from app.services.temporary_artifact_service import TemporaryArtifactService, te
 from app.crud.crud_docfir import create_documento, get_active_by_node_version, cancel_documento, get_by_id, mark_error
 from app.crud.crud_audifir import create_evento
 from app.models.docfir import DocFir, EstadoDoc
-from typing import Optional
+from typing import Optional, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -100,12 +102,22 @@ class DocumentService:
                 except Exception as e:
                     logger.warning(f"Error eliminando archivo temporal {temp_path}: {e}")
 
-    def cancelar_proceso(self, db: Session, docid: int, motivo: str, usrmod: str, ip: str) -> DocFir:
+    def cancelar_proceso(self, db: Session, docid: int, motivo: str, usrmod: str | Any, ip: str) -> DocFir:
         try:
+            if hasattr(usrmod, "user_id") and hasattr(usrmod, "is_admin"):
+                actor_user = usrmod.user_id
+                is_admin = usrmod.is_admin
+            else:
+                actor_user = str(usrmod).strip().lower()
+                is_admin = actor_user in ("admin", "administrador")
+
             docfir = get_by_id(db, docid)
             if not docfir:
                 raise HTTPException(status_code=404, detail="Proceso no encontrado")
-                
+
+            if actor_user != (docfir.usrcre or "").strip().lower() and not is_admin:
+                raise HTTPException(status_code=403, detail="No autorizado para cancelar este proceso")
+
             cancelable_states = (
                 EstadoDoc.BORRADOR.value,
                 EstadoDoc.EN_CURSO.value,
@@ -117,13 +129,13 @@ class DocumentService:
             if docfir.estado not in cancelable_states:
                 raise HTTPException(status_code=400, detail=f"No se puede cancelar un proceso en estado {docfir.estado}")
                 
-            cancel_documento(db, docfir, usrmod)
+            cancel_documento(db, docfir, actor_user)
             
             # Auditoría
             evento = create_evento(
                 db=db,
                 evento="DOC_CANCEL",
-                usrid=usrmod,
+                usrid=actor_user,
                 iporig=ip,
                 detalle=f"motivo: {motivo[:450]}"
             )

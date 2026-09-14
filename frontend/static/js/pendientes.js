@@ -1,4 +1,4 @@
-import { apiFetch, escapeText, getCurrentUser, showAlert } from "./api.js";
+import { apiFetch, escapeText, showAlert, setSessionUser } from "./api.js";
 
 const alertBox = document.querySelector("#alerts");
 const list = document.querySelector("#pendingList");
@@ -6,17 +6,20 @@ const refreshButton = document.querySelector("#refreshButton");
 const userInput = document.querySelector("[data-user-input]");
 
 const params = new URLSearchParams(window.location.search);
-userInput.value = params.get("user") || "firmante";
-refreshButton.addEventListener("click", loadPending);
-userInput.addEventListener("change", loadPending);
+const initialUser = params.get("user") || "firmante";
+if (userInput) userInput.value = initialUser;
+refreshButton?.addEventListener("click", loadPending);
+userInput?.addEventListener("change", loadPending);
 
 loadPending().catch((error) => showAlert(alertBox, "danger", error.message));
 
 async function loadPending() {
   list.innerHTML = rowTemplate(["Documento", "Etapa", "Rol", "Fecha", "Estado", ""], true);
-  const data = await apiFetch("/api/firma/pendientes", { user: getCurrentUser("firmante") });
+  const currentUser = userInput?.value?.trim() || initialUser;
+  await setSessionUser(currentUser);
+  const data = await apiFetch("/api/firma/pendientes");
   if (!data.items.length) {
-    list.innerHTML += `<div class="pending-row"><div>No hay pendientes para ${escapeText(getCurrentUser("firmante"))}.</div></div>`;
+    list.innerHTML += `<div class="pending-row"><div>No hay pendientes para ${escapeText(currentUser)}.</div></div>`;
     return;
   }
   list.innerHTML += data.items
@@ -27,7 +30,7 @@ async function loadPending() {
         item.rol,
         item.fecha ? new Date(item.fecha).toLocaleString() : "",
         item.estado,
-        `<a class="btn btn-primary" href="/firmas/${item.firid}?user=${encodeURIComponent(getCurrentUser("firmante"))}">Abrir</a>`,
+        `<a class="btn btn-primary" href="/firmas/${item.firid}?user=${encodeURIComponent(currentUser)}">Abrir</a>`,
       ]),
     )
     .join("");

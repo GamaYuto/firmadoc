@@ -1,5 +1,6 @@
 from typing import Optional
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -44,6 +45,29 @@ class Settings(BaseSettings):
     FIRMADOC_TMP_TTL_MINUTES: int = 30
     FIRMADOC_TMP_DIR: str = "tmp/firmadoc"
 
+    SECRET_KEY: str = "firmadoc-lab-secret-key-2026-unbreakable"
+    FIRMADOC_SESSION_COOKIE_NAME: str = "firmadoc_session"
+    FIRMADOC_SESSION_EXPIRE_MINUTES: int = 480
+    FIRMADOC_SESSION_COOKIE_SECURE: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_security_outside_lab(self) -> "Settings":
+        if not self.FIRMADOC_LAB_IDENTITY_ENABLED:
+            known_insecure = {
+                "",
+                "firmadoc-lab-secret-key-2026-unbreakable",
+                "change-me",
+                "changeme",
+                "secret",
+                "secretkey",
+            }
+            sec = (self.SECRET_KEY or "").strip()
+            if not sec or sec in known_insecure or len(sec) < 32:
+                raise ValueError(
+                    "SECRET_KEY obligatoria, segura (>= 32 caracteres) y no por defecto cuando FIRMADOC_LAB_IDENTITY_ENABLED=False"
+                )
+        return self
 
 settings = Settings()

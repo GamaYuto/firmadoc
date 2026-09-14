@@ -8,3 +8,4 @@ from app.models.docpaso import DocPaso
 from app.models.docpart import DocPart
 from app.models.docfirma import DocFirma
 from app.models.firpos import Firpos
+from app.models.sesionqr import SesionQr, EstadoSesionQr

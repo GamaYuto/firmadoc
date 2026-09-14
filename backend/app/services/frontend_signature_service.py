@@ -127,6 +127,19 @@ class FrontendSignatureService:
         await self._save_draft_tx(db, docid, payload, actor_user, ip)
         return self._send_to_signature_tx(db, docid, actor_user, ip, commit=True)
 
+    def _is_admin_or_gestor(self, actor: Any) -> bool:
+        if hasattr(actor, "is_gestor"):
+            return actor.is_gestor
+        if isinstance(actor, str):
+            u = actor.strip().lower()
+            return u in ("admin", "administrador", "gestor", "preparador")
+        return False
+
+    def _actor_id(self, actor: Any) -> str:
+        if hasattr(actor, "user_id"):
+            return actor.user_id.strip().lower()
+        return str(actor).strip().lower()
+
     async def _save_draft_tx(
         self,
         db: Session,
@@ -137,6 +150,9 @@ class FrontendSignatureService:
     ) -> PreparationRead:
         doc = self._get_doc(db, docid)
         self._assert_editable_document(doc)
+        actor_id = self._actor_id(actor_user)
+        if actor_id != (doc.usrcre or "").strip().lower() and not self._is_admin_or_gestor(actor_user):
+            raise HTTPException(status_code=403, detail="No autorizado para modificar el borrador de este documento")
         step = self._get_signing_step_for_update(db, doc.docid)
         pages = await self._ensure_page_sizes(db, doc, step)
         self._validate_participants(payload)
@@ -190,6 +206,9 @@ class FrontendSignatureService:
     ) -> SendToSignatureResponse:
         doc = self._get_doc_for_update(db, docid)
         self._assert_editable_document(doc)
+        actor_id = self._actor_id(actor_user)
+        if actor_id != (doc.usrcre or "").strip().lower() and not self._is_admin_or_gestor(actor_user):
+            raise HTTPException(status_code=403, detail="No autorizado para enviar este documento a firma")
         step = self._get_signing_step_for_update(db, doc.docid)
         draft = self._get_draft(step)
         if not draft:

@@ -55,6 +55,7 @@
           </div>
           <div class="button-row">
             <button id="clearButton" class="btn" type="button">Limpiar</button>
+            <button id="openQrButton" class="btn btn-outline-primary" type="button" title="Generar código QR para firmar desde smartphone">📱 Firmar con móvil (QR)</button>
           </div>
         </section>
 
@@ -77,7 +78,35 @@
       </aside>
     </main>
 
+    <!-- Modal QR Móvil -->
+    <div id="qrModal" class="modal-backdrop-custom" hidden>
+      <div class="modal-dialog-custom">
+        <div class="modal-header-custom">
+          <h3>Firmar desde el teléfono móvil</h3>
+          <button id="closeQrModal" class="btn-close-custom" type="button" aria-label="Cerrar">&times;</button>
+        </div>
+        <div class="modal-body-custom">
+          <p class="text-muted small mb-2">Escanee este código QR con la cámara de su teléfono móvil para firmar en pantalla táctil.</p>
+          <div id="qrContainer" class="qr-box"></div>
+          <div class="mt-2">
+            <span class="badge bg-secondary">Caduca en: <span id="qrCountdown">10:00</span></span>
+          </div>
+          <div class="mt-3 text-muted small">
+            <div class="spinner-border spinner-border-sm text-primary me-1" role="status"></div>
+            <span id="qrStatusText">Esperando firma desde el móvil...</span>
+          </div>
+          <div class="mt-3">
+            <a id="qrDirectLink" href="#" target="_blank" rel="noopener noreferrer" class="small text-decoration-none">Abrir enlace de firma móvil</a>
+          </div>
+        </div>
+        <div class="modal-footer-custom">
+          <button id="cancelQrButton" class="btn btn-secondary" type="button">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/qrcode.min.js"></script>
     <script src="/static/vendor/signature_pad.umd.min.js"></script>
     <script type="module" src="/static/js/firma.js"></script>
   </body>
