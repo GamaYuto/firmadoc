@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -61,6 +62,8 @@ _DEFAULT_DISCOVERY_PATH = "/alfresco/api/discovery"
 _DEFAULT_API_PATH = "/alfresco/api/-default-/public/alfresco/versions/1"
 _BOGOTA_TZ = timezone.utc
 _MAX_REDIRECTS = 5
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_text(value: Any, limit: int = 200) -> str:
@@ -1057,6 +1060,25 @@ class AlfrescoService:
         except Exception:
             pass
 
+    def _cleanup_process_artifacts(self, db: Session, docid: int) -> None:
+        try:
+            session_factory = self._build_session_factory(db)
+            read_db = session_factory()
+            firids: list[int] = []
+            try:
+                doc = read_db.scalars(select(DocFir).where(DocFir.docid == docid)).first()
+                if not doc or doc.estado != EstadoDoc.COMPLETADO.value:
+                    return
+                firids = list(read_db.scalars(select(DocFirma.firid).where(DocFirma.docid == docid)).all())
+            finally:
+                read_db.close()
+
+            for firid in firids:
+                for path in self.artifact_service.find_matching_paths(prefix=f"fir-{firid}-", suffix=".pdf"):
+                    self._cleanup_path(path)
+        except Exception as exc:
+            logger.warning("Fallo no fatal durante _cleanup_process_artifacts para docid=%s: %s", docid, exc)
+
     def _publish_current_version(self, snapshot: _PublicationSnapshot, validation: PdfValidationResult) -> tuple[AlfrescoNodeSnapshot, AlfrescoDownloadedArtifact]:
         remote_node = self.client.get_node(snapshot.node_id)
         self._validate_remote_node(remote_node, snapshot)
@@ -1489,6 +1511,10 @@ class AlfrescoService:
             raise
         finally:
             if completed and cleanup_generated_on_success:
+                try:
+                    self._cleanup_process_artifacts(db, snapshot.docid)
+                except Exception as exc:
+                    logger.warning("Fallo no fatal durante cleanup_process_artifacts (publicacion docid=%s): %s", snapshot.docid, exc)
                 self._cleanup_path(generated_pdf_path)
             self._cleanup_path(version_pdf_path)
 
@@ -1737,6 +1763,10 @@ class AlfrescoService:
             raise
         finally:
             if reconciled:
+                try:
+                    self._cleanup_process_artifacts(db, snapshot.docid)
+                except Exception as exc:
+                    logger.warning("Fallo no fatal durante cleanup_process_artifacts (reconciliacion docid=%s): %s", snapshot.docid, exc)
                 self._cleanup_path(snapshot.generated_path)
             self._cleanup_path(version_pdf_path)
 

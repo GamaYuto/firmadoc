@@ -1214,3 +1214,281 @@ def test_publication_preserves_exact_quotes_in_if_match(db_session, tmp_path):
     assert result.version_id == "1.1"
     assert context["generated_artifact"].path.exists() is False
     assert _event_count(db_session, context["firma"].firid, "PUBLICATION_COMPLETED") == 1
+
+
+@respx.mock
+def test_publication_success_cleans_up_all_intermediate_artifacts(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    temp_service = context["temp_service"]
+    service = _publication_service(temp_service, context["node_id"])
+    node_id = context["node_id"]
+    generated_bytes = context["generated_artifact"].path.read_bytes()
+
+    part_inter = DocPart(
+        dpasid=context["part"].dpasid,
+        usrid="firmante_intermedio",
+        nomcom="Firmante Intermedio",
+        correo="intermedio@example.com",
+        rolpro="Firmante",
+        orden=2,
+        obliga=True,
+        estado="COMPLETADO",
+        verlock=1,
+        usrcre="admin",
+    )
+    db_session.add(part_inter)
+    db_session.flush()
+
+    firma_inter = DocFirma(
+        docid=context["doc"].docid,
+        parid=part_inter.parid,
+        secuen=2,
+        intnum=1,
+        tipfir=TipoFirma.INTERNA.value,
+        estado=EstadoDocFirma.COMPLETADA.value,
+        verori="1.0",
+        hasori=context["doc"].hasori,
+        hasfin=hashlib.sha256(b"intermedio").hexdigest(),
+        verfin="1.0",
+        result={"schema_ver": 1, "fase": "FINALIZACION", "verchk": True, "haschk": True, "flags": ["HASH_MATCH"]},
+        fecini=context["firma"].fecini,
+        fecfin=context["firma"].fecini,
+        revnum=1,
+        usrcre="admin",
+    )
+    db_session.add(firma_inter)
+    db_session.commit()
+
+    inter_artifact = temp_service.write_bytes(
+        b"PDF intermedio firma 1",
+        prefix=f"fir-{firma_inter.firid}-",
+        suffix=".pdf",
+    )
+    assert inter_artifact.exists() is True
+    assert context["generated_artifact"].path.exists() is True
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, headers={"etag": '"etag-inter"'}, content=context["source_bytes"])
+    )
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(
+            200,
+            headers={"etag": '"etag-new"'},
+            json={
+                "entry": {
+                    "id": node_id,
+                    "properties": {"cm:versionLabel": "1.1"},
+                    "versionComment": context["comment"],
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": "1.1",
+                    "nodeId": node_id,
+                    "versionComment": context["comment"],
+                    "createdAt": "2026-08-03T12:00:00Z",
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1/content").mock(
+        return_value=httpx.Response(200, content=generated_bytes)
+    )
+
+    result = service.publish_generated_signature(
+        db=db_session,
+        firid=context["firma"].firid,
+        expected_revnum=context["firma"].revnum,
+        expected_participant_verlock=context["part"].verlock,
+    )
+
+    assert result.version_id == "1.1"
+    assert context["generated_artifact"].path.exists() is False
+    assert inter_artifact.exists() is False
+
+
+@respx.mock
+def test_publication_failure_preserves_intermediate_artifacts(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    temp_service = context["temp_service"]
+    service = _publication_service(temp_service, context["node_id"])
+    node_id = context["node_id"]
+
+    part_inter = DocPart(
+        dpasid=context["part"].dpasid,
+        usrid="firmante_intermedio_fail",
+        nomcom="Firmante Intermedio",
+        correo="intermedio@example.com",
+        rolpro="Firmante",
+        orden=2,
+        obliga=True,
+        estado="COMPLETADO",
+        verlock=1,
+        usrcre="admin",
+    )
+    db_session.add(part_inter)
+    db_session.flush()
+
+    firma_inter = DocFirma(
+        docid=context["doc"].docid,
+        parid=part_inter.parid,
+        secuen=2,
+        intnum=1,
+        tipfir=TipoFirma.INTERNA.value,
+        estado=EstadoDocFirma.COMPLETADA.value,
+        verori="1.0",
+        hasori=context["doc"].hasori,
+        hasfin=hashlib.sha256(b"intermedio").hexdigest(),
+        verfin="1.0",
+        result={"schema_ver": 1, "fase": "FINALIZACION", "verchk": True, "haschk": True, "flags": ["HASH_MATCH"]},
+        fecini=context["firma"].fecini,
+        fecfin=context["firma"].fecini,
+        revnum=1,
+        usrcre="admin",
+    )
+    db_session.add(firma_inter)
+    db_session.commit()
+
+    inter_artifact = temp_service.write_bytes(
+        b"PDF intermedio firma 1",
+        prefix=f"fir-{firma_inter.firid}-",
+        suffix=".pdf",
+    )
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, headers={"etag": '"etag-fail"'}, content=context["source_bytes"])
+    )
+    respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(412, text="Precondition Failed")
+    )
+
+    with pytest.raises(SignatureVersionConflictError):
+        service.publish_generated_signature(
+            db=db_session,
+            firid=context["firma"].firid,
+            expected_revnum=context["firma"].revnum,
+            expected_participant_verlock=context["part"].verlock,
+        )
+
+    assert inter_artifact.exists() is True
+    assert context["generated_artifact"].path.exists() is True
+
+
+@respx.mock
+def test_publication_cleanup_failure_does_not_change_success(db_session, tmp_path, monkeypatch):
+    context = _seed_publication_context(db_session, tmp_path)
+    _mark_context_pending_publication(db_session, context)
+    temp_service = context["temp_service"]
+    service = _publication_service(temp_service, context["node_id"])
+    node_id = context["node_id"]
+    generated_bytes = context["generated_artifact"].path.read_bytes()
+
+    def _broken_cleanup(*args, **kwargs):
+        raise RuntimeError("Simulated filesystem/database cleanup failure")
+
+    monkeypatch.setattr(service, "_cleanup_process_artifacts", _broken_cleanup)
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, headers={"etag": '"etag-clean"'}, content=context["source_bytes"])
+    )
+    put_route = respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(
+            200,
+            headers={"etag": '"etag-new"'},
+            json={
+                "entry": {
+                    "id": node_id,
+                    "properties": {"cm:versionLabel": "1.1"},
+                    "versionComment": context["comment"],
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": "1.1",
+                    "nodeId": node_id,
+                    "versionComment": context["comment"],
+                    "createdAt": "2026-08-03T12:00:00Z",
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1/content").mock(
+        return_value=httpx.Response(200, content=generated_bytes)
+    )
+
+    outcome = service.publish_document(db_session, context["doc"].docid, "admin", "127.0.0.1", "pytest")
+
+    assert outcome.status == "PUBLISHED"
+    assert outcome.publication_status == "PUBLISHED"
+    assert outcome.final_version == "1.1"
+    assert put_route.call_count == 1
+
+    db_session.expire_all()
+    doc = db_session.get(DocFir, context["doc"].docid)
+    firma = db_session.get(DocFirma, context["firma"].firid)
+    assert doc is not None
+    assert doc.estado == EstadoDoc.COMPLETADO.value
+    assert doc.verfin == "1.1"
+    assert firma is not None
+    assert firma.estado == EstadoDocFirma.COMPLETADA.value
+    assert firma.verfin == "1.1"
+    assert _event_count(db_session, context["firma"].firid, "PUBLICATION_COMPLETED") == 1
