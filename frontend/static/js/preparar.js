@@ -1,4 +1,4 @@
-import { apiFetch, escapeText, isUuid, setBusy, showAlert, setSessionUser } from "./api.js";
+import { apiFetch, escapeText, isUuid, setBusy, showAlert, setSessionUser, getCurrentUser } from "./api.js";
 import { PdfViewer } from "./pdf-viewer.js";
 import { buildDraftPayload, normalizeUser } from "./preparation-state.js";
 import { isPreparationEditableStatus } from "./workflow-state.js";

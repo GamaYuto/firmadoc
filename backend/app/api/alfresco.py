@@ -16,6 +16,7 @@ from app.core.database import get_db
 from sqlalchemy.orm import Session
 import logging
 
+from app.core.config import settings
 from app.core.security import AuthenticatedPrincipal, get_current_principal
 
 logger = logging.getLogger(__name__)

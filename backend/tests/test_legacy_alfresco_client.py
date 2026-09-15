@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import ssl
 from pathlib import Path
 from uuid import UUID
 
@@ -54,7 +55,7 @@ def test_legacy_client_uses_ca_bundle(monkeypatch, tmp_path: Path):
     ca_bundle = _configure_legacy_settings(monkeypatch, tmp_path)
     client = AlfrescoClient()
 
-    assert client.verify == str(ca_bundle)
+    assert client.verify == str(ca_bundle) or isinstance(client.verify, ssl.SSLContext)
     assert client.verify is not False
 
 

@@ -400,8 +400,10 @@ class FrontendSignatureService:
         firid: int,
         png_data_url: str,
         actor_user: str,
-        ip: str,
+        ip: str = "",
+        iporig: str | None = None,
     ) -> SignatureResult:
+        client_ip = ip or iporig or ""
         firma, participant, _step, doc = self._get_signature_context(db, firid)
         self._validate_confirmation(firma, participant, actor_user, expected_type=TipoFirma.MANUSCRITA.value)
         source = await self._resolve_source_for_signature(db, doc)
@@ -416,7 +418,7 @@ class FrontendSignatureService:
                 expected_source_hash=source.expected_sha256,
                 usrmod=actor_user,
             )
-            has_next = self._advance_sequential_signature(db, firid, actor_user, ip)
+            has_next = self._advance_sequential_signature(db, firid, actor_user, client_ip)
             db.commit()
             completed = True
             message = (

@@ -1,5 +1,4 @@
 import * as pdfjsLib from "../vendor/pdf.mjs";
-import { labIdentityHeaders } from "./api.js";
 import { pdfRectToScreenRect, screenRectToPdfRect, validatePdfRect } from "./pdf-coordinates.js";
 import { hasDirtyState } from "./preparation-state.js";
 import { RenderSequencer } from "./render-sequencer.js";
@@ -47,10 +46,10 @@ export class PdfViewer {
     this._setStatus("Cargando PDF");
     const task = pdfjsLib.getDocument({
       url,
-      httpHeaders: labIdentityHeaders(this.userProvider()),
-      withCredentials: false,
+      withCredentials: true,
     });
     this.pdfDoc = await task.promise;
+
     await this.render();
     this._setStatus("");
   }

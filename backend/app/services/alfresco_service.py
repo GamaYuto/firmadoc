@@ -282,7 +282,13 @@ class AlfrescoLabClient(AlfrescoClientProtocol):
             ca_bundle_path = Path(ca_bundle_value)
             if not ca_bundle_path.exists():
                 raise SignatureUploadError("La CA de Alfresco configurada no existe")
-            self.verify: bool | str = str(ca_bundle_path)
+            if getattr(settings, "FIRMADOC_LAB_IDENTITY_ENABLED", False):
+                import ssl
+                ctx = ssl.create_default_context(cafile=str(ca_bundle_path))
+                ctx.check_hostname = False
+                self.verify = ctx
+            else:
+                self.verify = str(ca_bundle_path)
         else:
             self.verify = True
 

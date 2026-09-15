@@ -176,3 +176,7 @@ export function getCurrentUser(fallback = "usuario") {
   const el = document.querySelector("[data-user-input]");
   return el?.value?.trim() || fallback;
 }
+
+export function labIdentityHeaders(user) {
+  return {};
+}

@@ -12,7 +12,7 @@ from app.core.config import settings
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
-HEAD_REV = "c1a9b8a7f2d3"
+HEAD_REV = "d2b8c7a1e5f4"
 BASE_REV = "f61284a6c891"
 DATABASE_URL = settings.DATABASE_URL
 

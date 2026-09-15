@@ -3,6 +3,7 @@ try:
     import pymupdf as fitz
 except ImportError:  # pragma: no cover - fallback for older installs
     import fitz  # type: ignore[no-redef]
+import ssl
 from uuid import UUID
 import os
 import tempfile
@@ -33,15 +34,23 @@ class AlfrescoClient:
         self.base_url = f"{settings.ALFRESCO_BASE_URL.rstrip('/')}{api_path}"
         self.auth = (username, settings.ALFRESCO_PASSWORD)
         self.timeout = settings.ALFRESCO_TIMEOUT_SECONDS
+
         ca_bundle = getattr(settings, "ALFRESCO_CA_BUNDLE", None)
+
         if ca_bundle:
             ca_bundle_path = Path(ca_bundle)
             if not ca_bundle_path.exists():
                 raise AlfrescoConnectionError("La CA configurada para Alfresco no existe")
-            self.verify = str(ca_bundle_path)
+            if getattr(settings, "FIRMADOC_LAB_IDENTITY_ENABLED", False):
+                ctx = ssl.create_default_context(cafile=str(ca_bundle_path))
+                ctx.check_hostname = False
+                self.verify = ctx
+            else:
+                self.verify = str(ca_bundle_path)
         else:
             self.verify = True
         self.max_size = settings.ALFRESCO_MAX_DOWNLOAD_MB * 1024 * 1024
+
 
     def _handle_error(self, exc: httpx.HTTPError):
         if isinstance(exc, httpx.HTTPStatusError):

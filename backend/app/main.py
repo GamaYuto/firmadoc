@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.requests import Request
 from fastapi.staticfiles import StaticFiles
@@ -36,12 +36,18 @@ def _frontend_file(name: str) -> FileResponse:
     return FileResponse(path)
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
+
+
 @app.get("/", include_in_schema=False)
 async def index_redirect():
     return RedirectResponse(url="/documentos")
 
 
 @app.get("/documentos", include_in_schema=False)
+
 
 async def documents_page():
     return _frontend_file("documentos.html")
