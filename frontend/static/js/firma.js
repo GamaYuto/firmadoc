@@ -37,6 +37,7 @@ let signaturePad = null;
 let lastPreviewDataUrl = null;
 let resizeHandler = null;
 let resultPdfUrl = null;
+let preparation = null;
 
 let qrPollingInterval = null;
 let qrCountdownInterval = null;
@@ -100,7 +101,7 @@ async function loadSignature() {
   resultPdfUrl = `/api/firma/firmas/${firid}/resultado/pdf`;
 
   const pdfUrl = `/api/alfresco/nodes/${detail.node_id}/content`;
-  const preparation = await apiFetch(`/api/firma/preparacion/doc/${detail.docid}`, { user: getCurrentUser("firmante") });
+  preparation = await apiFetch(`/api/firma/preparacion/doc/${detail.docid}`, { user: getCurrentUser("firmante") });
   await viewer.load(pdfUrl, preparation.pages, detail.positions.map((position, index) => ({ ...position, id: `sign-${index}`, saved: true })));
 
   if (isSignatureAttemptActive(detail.estado)) {
@@ -124,6 +125,7 @@ function setActiveSignatureMode() {
   clearButton.hidden = detail.tipfir !== "MANUSCRITA";
   cancelButton.hidden = false;
   confirmButton.hidden = false;
+  preview.closest(".properties")?.removeAttribute("hidden");
   resultPanel.hidden = true;
   pageStatus.textContent = "Firma activa";
   if (detail.tipfir === "MANUSCRITA") {
@@ -139,7 +141,8 @@ function setClosedSignatureMode() {
   clearButton.hidden = true;
   cancelButton.hidden = true;
   confirmButton.hidden = true;
-  pageStatus.textContent = detail.document_status || "Resultado local";
+  preview.closest(".properties")?.setAttribute("hidden", "");
+  pageStatus.textContent = detail?.document_status || "Resultado local";
   preview.textContent = "Sin previsualizacion";
 }
 
@@ -284,9 +287,19 @@ async function publishToAlfresco(event) {
 }
 
 function renderResult(result) {
+  setClosedSignatureMode();
+  if (detail) {
+    detail.document_status = result.document_status || result.status;
+    detail.estado = result.status;
+  }
   docStatus.textContent = result.document_status || result.status;
   showAlert(alertBox, "success", result.message);
   resultPanel.hidden = false;
+  if (isLocalResultReady(result.document_status || result.status) && preparation?.pages) {
+    viewer.load(`/api/firma/firmas/${firid}/resultado/pdf`, preparation.pages, []).catch((err) => {
+      console.warn("No fue posible cargar el PDF firmado en el visor:", err);
+    });
+  }
   const publicationLabel = result.alfresco_publication === "PENDING" ? "Pendiente de publicacion en Alfresco" : result.alfresco_publication === "PUBLISHED" ? "Publicada" : "No iniciada";
   const localStateLabel = result.document_status === "PENDIENTE_PUBLICACION" ? "Pendiente de publicacion en Alfresco" : "Pendiente del siguiente firmante";
   const publicationControl = getPublicationControlState(result);
