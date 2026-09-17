@@ -26,6 +26,7 @@ from app.schemas.firma_frontend import (
     PreparationPosition,
 )
 from pydantic import BaseModel
+from urllib.parse import urlparse
 from app.models.docfirma import TipoFirma
 from app.services.alfresco_service import AlfrescoService
 from app.services.signature_exceptions import SignaturePublicationError
@@ -326,3 +327,37 @@ async def confirm_mobile_signature(
         mobile_user_id=principal.user_id,
         iporig=client_ip(request),
     )
+
+class ValidatedUrlResponse(BaseModel):
+    url: str | None = None
+
+@router.get("/validate-return-url", response_model=ValidatedUrlResponse)
+def validate_return_url(url: str):
+    if not url:
+        return ValidatedUrlResponse(url=None)
+    
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return ValidatedUrlResponse(url=None)
+            
+        allowed_origins = getattr(settings, "FIRMADOC_ALLOWED_RETURN_ORIGINS", "")
+        allowed = [origin.strip() for origin in allowed_origins.split(",") if origin.strip()]
+        
+        is_allowed = False
+        for origin in allowed:
+            try:
+                allowed_parsed = urlparse(origin)
+                # Check if it matches hostname and optionally port
+                if parsed.hostname == allowed_parsed.hostname:
+                    is_allowed = True
+                    break
+            except Exception:
+                continue
+                
+        if is_allowed:
+            return ValidatedUrlResponse(url=url)
+        else:
+            return ValidatedUrlResponse(url=None)
+    except Exception:
+        return ValidatedUrlResponse(url=None)

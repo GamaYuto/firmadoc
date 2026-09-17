@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     FIRMADOC_MAX_IMAGE_HEIGHT: int = 4096
     FIRMADOC_TMP_TTL_MINUTES: int = 30
     FIRMADOC_TMP_DIR: str = "tmp/firmadoc"
+    FIRMADOC_ALLOWED_RETURN_ORIGINS: str = "http://192.168.0.10,https://alfresco-lab.test"
 
     SECRET_KEY: str = "firmadoc-lab-secret-key-2026-unbreakable"
     FIRMADOC_SESSION_COOKIE_NAME: str = "firmadoc_session"

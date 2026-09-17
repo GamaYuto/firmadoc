@@ -46,7 +46,13 @@ async def index_redirect():
     return RedirectResponse(url="/documentos")
 
 @app.get("/iniciar", include_in_schema=False)
-async def iniciar_page():
+async def iniciar_page(request: Request):
+    node_id = request.query_params.get("nodeId", "")
+    if node_id.startswith("workspace://SpacesStore/"):
+        clean_node_id = node_id.replace("workspace://SpacesStore/", "")
+        # Rebuild URL with clean nodeId
+        new_url = request.url.include_query_params(nodeId=clean_node_id)
+        return RedirectResponse(url=str(new_url))
     return _frontend_file("iniciar.html")
 
 @app.get("/documentos", include_in_schema=False)

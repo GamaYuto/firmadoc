@@ -174,16 +174,14 @@ async function confirmPreparation() {
     let redirectUrl = `/firmas/${response.firid}?user=${encodeURIComponent(userInput.value.trim())}&autoQr=true`;
     if (returnUrl) {
       try {
-        const parsedUrl = new URL(returnUrl, window.location.origin);
-        // Allowlist para evitar Open Redirect.
-        const allowedHosts = ["192.168.0.10", "alfresco-lab.test", window.location.hostname];
-        if (allowedHosts.includes(parsedUrl.hostname) || parsedUrl.hostname.endsWith(".test")) {
-          redirectUrl += `&returnUrl=${encodeURIComponent(returnUrl)}`;
+        const urlValidation = await apiFetch(`/api/firma/validate-return-url?url=${encodeURIComponent(returnUrl)}`);
+        if (urlValidation.url) {
+          redirectUrl += `&returnUrl=${encodeURIComponent(urlValidation.url)}`;
         } else {
-          console.warn("returnUrl rechazado por política de seguridad:", returnUrl);
+          console.warn("returnUrl rechazado por el servidor:", returnUrl);
         }
       } catch (e) {
-        console.warn("returnUrl inválido:", returnUrl);
+        console.warn("Error validando returnUrl:", e);
       }
     }
     window.location.href = redirectUrl;
