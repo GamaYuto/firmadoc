@@ -22,7 +22,11 @@ from app.schemas.firma_frontend import (
     SendToSignatureResponse,
     SignatureDetail,
     SignatureResult,
+    PreparationParticipant,
+    PreparationPosition,
 )
+from pydantic import BaseModel
+from app.models.docfirma import TipoFirma
 from app.services.alfresco_service import AlfrescoService
 from app.services.signature_exceptions import SignaturePublicationError
 from app.services.frontend_signature_service import frontend_signature_service
@@ -49,6 +53,47 @@ def _publication_error_response(exc: SignaturePublicationError) -> HTTPException
             "message": exc.message,
         },
     )
+
+class SignatureStartPayload(BaseModel):
+    node_id: UUID
+    signer_user_id: str
+    page: int
+    posx: float
+    posy: float
+    width: float
+    height: float
+
+@router.post("/iniciar", response_model=SendToSignatureResponse, status_code=201)
+async def start_signature_flow(
+    payload: SignatureStartPayload,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    ip = client_ip(request)
+    prep = await frontend_signature_service.get_or_create_preparation(db, payload.node_id, principal.user_id, ip)
+    
+    draft_payload = PreparationDraftSave(
+        participants=[
+            PreparationParticipant(usrid=payload.signer_user_id, orden=1, obliga=True)
+        ],
+        positions=[
+            PreparationPosition(
+                pagina=payload.page,
+                posx=payload.posx,
+                posy=payload.posy,
+                ancho=payload.width,
+                alto=payload.height,
+                rotaci=0,
+                orden=1,
+                tipfir=TipoFirma.MANUSCRITA.value,
+                usrid=payload.signer_user_id
+            )
+        ]
+    )
+    
+    return await frontend_signature_service.save_and_send(db, prep.docid, draft_payload, principal.user_id, ip)
+
 
 
 @router.get("/preparacion/{node_id}", response_model=PreparationRead)

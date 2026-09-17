@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FirmaDoc | Iniciar Firma</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">FirmaDoc</div>
+      <div class="header-meta">
+        <span id="docName">Documento</span>
+        <span id="docVersion" class="status-pill">Version</span>
+        <span class="status-pill lab-mode">MODO LABORATORIO</span>
+        <label>Usuario Autenticado <input data-user-input type="text" autocomplete="off" value="admin"></label>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="sidebar">
+        <button id="backButton" class="btn" type="button">Regresar</button>
+        <h2>Paginas</h2>
+        <nav id="thumbs" aria-label="Paginas del PDF"></nav>
+      </aside>
+
+      <section class="viewer-column" aria-label="Visor PDF">
+        <div class="viewer-toolbar">
+          <div id="pageStatus" role="status"></div>
+          <label>Zoom
+            <select id="zoomSelect">
+              <option value="0.75">75%</option>
+              <option value="1" selected>100%</option>
+              <option value="1.5">150%</option>
+            </select>
+          </label>
+        </div>
+        <div id="pdfContainer" class="pdf-scroll"></div>
+      </section>
+
+      <aside class="config-panel">
+        <div id="alerts" aria-live="polite"></div>
+        <section>
+          <h2>¿Quién debe firmar?</h2>
+          <div class="field">
+            <label>
+              <input type="radio" name="signerType" value="yo" checked> Yo
+            </label>
+            <label>
+              <input type="radio" name="signerType" value="otro"> Otro usuario
+            </label>
+          </div>
+          <div class="field" id="otherUserField" hidden>
+            <label for="signerUser">Firmante:</label>
+            <input id="signerUser" type="text" autocomplete="off" placeholder="Buscar usuario ...">
+          </div>
+        </section>
+
+        <section class="properties">
+          <h2>Posición</h2>
+          <div id="positionInfo"><p>Seleccione o dibuje un rectángulo en el documento.</p></div>
+        </section>
+
+        <div class="button-row">
+          <button id="deletePosition" class="btn btn-danger" type="button" hidden>Eliminar posicion</button>
+          <button id="confirmPosition" class="btn btn-primary" type="button" disabled>Confirmar posición</button>
+        </div>
+      </aside>
+    </main>
+
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+    <script type="module" src="/static/js/iniciar.js?v=11.2"></script>
+  </body>
+</html>

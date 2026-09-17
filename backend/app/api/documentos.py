@@ -12,9 +12,34 @@ from app.crud.crud_audifir import create_evento
 
 from app.core.security import AuthenticatedPrincipal, get_current_principal
 
+from pydantic import BaseModel
+from typing import List, Dict
+
+class DocInfo(BaseModel):
+    node_id: str
+    name: str
+    version: str
+    mime_type: str
+    pages: List[Dict[str, float]]
+
 router = APIRouter()
 alfresco_client = AlfrescoClient()
 doc_service = DocumentService(alfresco_client)
+
+@router.get("/{node_id}/info", response_model=DocInfo)
+async def obtener_info_documento(
+    node_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    ip = request.client.host if request.client else ""
+    try:
+        return await doc_service.get_node_info(node_id, ip)
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        handle_alfresco_exceptions(e, db, node_id, ip)
 
 @router.post("/iniciar", response_model=DocFirRead, status_code=201)
 async def iniciar_proceso(

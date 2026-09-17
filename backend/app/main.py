@@ -45,6 +45,9 @@ async def favicon():
 async def index_redirect():
     return RedirectResponse(url="/documentos")
 
+@app.get("/iniciar", include_in_schema=False)
+async def iniciar_page():
+    return _frontend_file("iniciar.html")
 
 @app.get("/documentos", include_in_schema=False)
 

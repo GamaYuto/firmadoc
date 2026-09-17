@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from app.services.alfresco_client import AlfrescoClient
 from app.services.temporary_artifact_service import TemporaryArtifactService, temporary_artifact_service
+import pymupdf as fitz
 from app.crud.crud_docfir import create_documento, get_active_by_node_version, cancel_documento, get_by_id, mark_error
 from app.crud.crud_audifir import create_evento
 from app.models.docfir import DocFir, EstadoDoc
@@ -19,6 +20,44 @@ class DocumentService:
     def __init__(self, alfresco_client: AlfrescoClient, artifact_service: Optional[TemporaryArtifactService] = None):
         self.alfresco_client = alfresco_client
         self.artifact_service = artifact_service or temporary_artifact_service
+
+    async def get_node_info(self, node_id: UUID, ip: str) -> dict:
+        metadata = await self.alfresco_client.get_node_metadata(node_id)
+        if not metadata.is_file:
+            raise HTTPException(status_code=422, detail="El nodo solicitado no es un archivo")
+        if metadata.mime_type != "application/pdf":
+            raise HTTPException(status_code=415, detail="El documento no es un PDF")
+        
+        verini = metadata.version_label or "1.0"
+        
+        temp_path = None
+        pages = []
+        try:
+            temp_path, _size, _sha = await self.alfresco_client.download_node_content(node_id)
+            with fitz.open(temp_path) as document:
+                pages = [
+                    {
+                        "page": index + 1,
+                        "width": float(page.rect.width),
+                        "height": float(page.rect.height),
+                        "rotation": int(page.rotation or 0)
+                    }
+                    for index, page in enumerate(document)
+                ]
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except Exception as e:
+                    logger.warning(f"Error eliminando archivo temporal {temp_path}: {e}")
+
+        return {
+            "node_id": str(node_id),
+            "name": metadata.name,
+            "version": verini,
+            "mime_type": metadata.mime_type,
+            "pages": pages
+        }
 
     async def iniciar_proceso(self, db: Session, node_id: UUID, usrcre: str, ip: str) -> DocFir:
         temp_path = None

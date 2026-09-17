@@ -68,6 +68,10 @@ async function init() {
   });
   bindControls();
   await loadSignature();
+  
+  if (params.get("autoQr") === "true" && detail?.tipfir === "MANUSCRITA" && isSignatureAttemptActive(detail.estado)) {
+    openQrModal();
+  }
 }
 
 function bindControls() {
@@ -328,6 +332,7 @@ function renderResult(result) {
       <button id="viewGeneratedResult" class="btn btn-info" type="button">Ver resultado generado</button>
       ${publishButton}
       <a class="btn btn-primary" href="/pendientes?user=${encodeURIComponent(getCurrentUser("firmante"))}">Volver a pendientes</a>
+      ${params.get("returnUrl") ? `<a class="btn btn-success" href="${escapeText(params.get("returnUrl"))}">Volver a Alfresco</a>` : ""}
     </div>
   `;
   document.querySelector("#viewGeneratedResult").addEventListener("click", openGeneratedResult);

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alfresco-config>
+    <!-- Document Library Actions -->
+    <config evaluator="string-compare" condition="DocLibActions">
+        <actions>
+            <!-- Acción para Firmar Documento (FirmaDoc) -->
+            <action id="document-sign-firmadoc" type="link" label="Firmar documento (FirmaDoc)">
+                <param name="href">{site_url}://<firmadoc_host>/iniciar?nodeId={node.nodeRef}&amp;returnUrl={site_url}/page/document-details?nodeRef={node.nodeRef}</param>
+                <param name="target">_blank</param>
+            </action>
+        </actions>
+
+        <actionGroups>
+            <actionGroup id="document-browse">
+                <action index="400" id="document-sign-firmadoc" />
+            </actionGroup>
+            <actionGroup id="document-details">
+                <action index="400" id="document-sign-firmadoc" />
+            </actionGroup>
+        </actionGroups>
+    </config>
+
+    <!-- Indicadores de Acción (Action Indicators) -->
+    <config evaluator="string-compare" condition="DocumentLibrary">
+        <indicators>
+            <indicator id="document-sign-firmadoc" index="100">
+                <evaluator>evaluator.doclib.action.isMimetype</evaluator>
+                <param name="mimetype">application/pdf</param>
+            </indicator>
+        </indicators>
+    </config>
+</alfresco-config>
