@@ -14,10 +14,14 @@ const pageStatus = document.querySelector("#pageStatus");
 const signerTypeRadios = document.querySelectorAll('input[name="signerType"]');
 const otherUserField = document.querySelector("#otherUserField");
 const signerUser = document.querySelector("#signerUser");
+const signerUserSearch = document.querySelector("#signerUserSearch");
+const userSearchResults = document.querySelector("#userSearchResults");
+const selectedUserDisplay = document.querySelector("#selectedUserDisplay");
 const confirmPositionBtn = document.querySelector("#confirmPosition");
 
 let viewer = null;
 let currentPosition = null;
+let searchTimeout = null;
 
 init().catch((error) => showAlert(alertBox, "danger", error.message));
 
@@ -70,11 +74,50 @@ function bindControls() {
     });
   });
 
+  signerUserSearch.addEventListener("input", (e) => {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim();
+    if (query.length < 2) {
+      userSearchResults.innerHTML = "";
+      return;
+    }
+    searchTimeout = setTimeout(() => performUserSearch(query), 300);
+  });
+
   document.querySelector("#deletePosition")?.addEventListener("click", () => {
     viewer.clearPositions();
   });
 
   confirmPositionBtn.addEventListener("click", confirmPreparation);
+}
+
+async function performUserSearch(query) {
+  try {
+    const results = await apiFetch(`/api/alfresco/usuarios/buscar?q=${encodeURIComponent(query)}`);
+    userSearchResults.innerHTML = "";
+    if (results.length === 0) {
+      userSearchResults.innerHTML = '<div class="list-group-item text-muted">No se encontraron usuarios</div>';
+      return;
+    }
+    
+    results.forEach(user => {
+      const a = document.createElement("a");
+      a.href = "#";
+      a.className = "list-group-item list-group-item-action";
+      a.textContent = `${user.displayName} (${user.userName})`;
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        signerUser.value = user.userName;
+        signerUserSearch.value = "";
+        userSearchResults.innerHTML = "";
+        selectedUserDisplay.textContent = `Usuario seleccionado: ${user.displayName} (${user.userName})`;
+        selectedUserDisplay.hidden = false;
+      });
+      userSearchResults.appendChild(a);
+    });
+  } catch (error) {
+    console.error("Error buscando usuarios:", error);
+  }
 }
 
 async function loadDocumentInfo() {
@@ -102,7 +145,7 @@ async function confirmPreparation() {
   if (!currentPosition) return;
   
   const isOther = document.querySelector('input[name="signerType"]:checked').value === "otro";
-  let targetUser = userInput.value.trim();
+  let targetUser = "yo";
   if (isOther) {
     targetUser = signerUser.value.trim();
     if (!targetUser) {
@@ -130,7 +173,18 @@ async function confirmPreparation() {
 
     let redirectUrl = `/firmas/${response.firid}?user=${encodeURIComponent(userInput.value.trim())}&autoQr=true`;
     if (returnUrl) {
-      redirectUrl += `&returnUrl=${encodeURIComponent(returnUrl)}`;
+      try {
+        const parsedUrl = new URL(returnUrl, window.location.origin);
+        // Allowlist para evitar Open Redirect.
+        const allowedHosts = ["192.168.0.10", "alfresco-lab.test", window.location.hostname];
+        if (allowedHosts.includes(parsedUrl.hostname) || parsedUrl.hostname.endsWith(".test")) {
+          redirectUrl += `&returnUrl=${encodeURIComponent(returnUrl)}`;
+        } else {
+          console.warn("returnUrl rechazado por política de seguridad:", returnUrl);
+        }
+      } catch (e) {
+        console.warn("returnUrl inválido:", returnUrl);
+      }
     }
     window.location.href = redirectUrl;
 

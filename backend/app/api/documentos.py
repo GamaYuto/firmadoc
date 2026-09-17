@@ -9,6 +9,7 @@ from app.services.alfresco_client import AlfrescoClient
 from app.api.alfresco import handle_alfresco_exceptions
 from app.crud.crud_docfir import get_by_id, list_documentos
 from app.crud.crud_audifir import create_evento
+from app.api.alfresco import parse_node_id
 
 from app.core.security import AuthenticatedPrincipal, get_current_principal
 
@@ -28,18 +29,19 @@ doc_service = DocumentService(alfresco_client)
 
 @router.get("/{node_id}/info", response_model=DocInfo)
 async def obtener_info_documento(
-    node_id: UUID,
+    node_id: str,
     request: Request,
     db: Session = Depends(get_db),
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
     ip = request.client.host if request.client else ""
+    parsed_id = parse_node_id(node_id)
     try:
-        return await doc_service.get_node_info(node_id, ip)
+        return await doc_service.get_node_info(parsed_id, ip)
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        handle_alfresco_exceptions(e, db, node_id, ip)
+        handle_alfresco_exceptions(e, db, parsed_id, ip)
 
 @router.post("/iniciar", response_model=DocFirRead, status_code=201)
 async def iniciar_proceso(
@@ -49,13 +51,14 @@ async def iniciar_proceso(
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
     ip = request.client.host if request.client else ""
+    parsed_id = parse_node_id(data.node_id)
     try:
-        return await doc_service.iniciar_proceso(db, data.node_id, principal.user_id, ip)
+        return await doc_service.iniciar_proceso(db, parsed_id, principal.user_id, ip)
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
         # Delegate alfresco errors to the unified handler
-        handle_alfresco_exceptions(e, db, data.node_id, ip)
+        handle_alfresco_exceptions(e, db, parsed_id, ip)
 
 @router.post("/{docid}/cancelar", response_model=DocFirRead)
 def cancelar_proceso(

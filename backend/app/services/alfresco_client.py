@@ -245,3 +245,35 @@ class AlfrescoClient:
                 return results
             except httpx.HTTPError as e:
                 self._handle_error(e)
+
+    async def search_users(self, term: str, max_items: int = 50) -> list[dict]:
+        term_clean = term.strip()
+        if not term_clean:
+            return []
+        url = f"{self.base_url}/people"
+        # In Alfresco Core API, people search can be done? Wait, usually it's /people or /queries/people.
+        # Actually /queries/people works in public API v1.
+        url = f"{self.base_url}/queries/people"
+        params = {
+            "term": term_clean,
+            "maxItems": max_items,
+        }
+        async with httpx.AsyncClient(auth=self.auth, timeout=self.timeout, verify=self.verify) as client:
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json().get("list", {})
+                entries = data.get("entries", [])
+
+                results = []
+                for item in entries:
+                    entry = item.get("entry", {})
+                    results.append({
+                        "userName": entry.get("id"),
+                        "firstName": entry.get("firstName", ""),
+                        "lastName": entry.get("lastName", ""),
+                        "displayName": entry.get("displayName", "")
+                    })
+                return results
+            except httpx.HTTPError as e:
+                self._handle_error(e)

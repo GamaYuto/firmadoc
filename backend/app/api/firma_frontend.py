@@ -55,7 +55,7 @@ def _publication_error_response(exc: SignaturePublicationError) -> HTTPException
     )
 
 class SignatureStartPayload(BaseModel):
-    node_id: UUID
+    node_id: str
     signer_user_id: str
     page: int
     posx: float
@@ -70,12 +70,29 @@ async def start_signature_flow(
     db: Session = Depends(get_db),
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
+    from app.api.alfresco import parse_node_id
+    from app.services.alfresco_client import AlfrescoClient
     ip = client_ip(request)
-    prep = await frontend_signature_service.get_or_create_preparation(db, payload.node_id, principal.user_id, ip)
+    parsed_id = parse_node_id(payload.node_id)
+    
+    current_user_id = principal.user_id.strip().lower()
+    target_user_id = payload.signer_user_id.strip().lower()
+    
+    if target_user_id == "yo" or not target_user_id:
+        target_user_id = current_user_id
+    
+    if target_user_id != current_user_id:
+        alf_client = AlfrescoClient()
+        users = await alf_client.search_users(target_user_id, max_items=10)
+        found = any(u.get("userName", "").lower() == target_user_id for u in users)
+        if not found:
+            raise HTTPException(status_code=400, detail=f"Usuario Alfresco no encontrado: {target_user_id}")
+    
+    prep = await frontend_signature_service.get_or_create_preparation(db, parsed_id, principal.user_id, ip)
     
     draft_payload = PreparationDraftSave(
         participants=[
-            PreparationParticipant(usrid=payload.signer_user_id, orden=1, obliga=True)
+            PreparationParticipant(usrid=target_user_id, orden=1, obliga=True)
         ],
         positions=[
             PreparationPosition(
@@ -87,7 +104,7 @@ async def start_signature_flow(
                 rotaci=0,
                 orden=1,
                 tipfir=TipoFirma.MANUSCRITA.value,
-                usrid=payload.signer_user_id
+                usrid=target_user_id
             )
         ]
     )

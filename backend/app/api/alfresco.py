@@ -33,6 +33,15 @@ def sanitize_filename(name: str) -> str:
         name += ".pdf"
     return name
 
+def parse_node_id(node_id: str) -> UUID:
+    prefix = "workspace://SpacesStore/"
+    if node_id.startswith(prefix):
+        node_id = node_id[len(prefix):]
+    try:
+        return UUID(node_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Identificador de documento Alfresco inválido")
+
 def handle_alfresco_exceptions(e: Exception, db: Session, node_id: UUID, ip: str):
     if isinstance(e, AlfrescoNotFoundError):
         create_evento(db, evento="ALF_NOT_FOUND", iporig=ip, detalle=f"Nodo no encontrado: {node_id}")
@@ -67,14 +76,15 @@ def handle_alfresco_exceptions(e: Exception, db: Session, node_id: UUID, ip: str
 
 @router.get("/nodes/{node_id}", response_model=NodeMetadata)
 async def get_node_metadata(
-    node_id: UUID,
+    node_id: str,
     request: Request,
     db: Session = Depends(get_db),
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
     ip = request.client.host if request.client else None
+    parsed_id = parse_node_id(node_id)
     try:
-        metadata = await client.get_node_metadata(node_id)
+        metadata = await client.get_node_metadata(parsed_id)
         if not metadata.is_file:
             create_evento(db, evento="ALF_CONT_ERR", usrid=principal.user_id, iporig=ip, detalle=f"Nodo no es archivo: {node_id}")
             raise HTTPException(status_code=422, detail="El nodo solicitado no es un archivo")
@@ -82,22 +92,23 @@ async def get_node_metadata(
             create_evento(db, evento="ALF_CONT_ERR", usrid=principal.user_id, iporig=ip, detalle=f"Nodo sin mimeType: {node_id}")
             raise HTTPException(status_code=422, detail="El nodo no tiene un mimeType válido")
             
-        create_evento(db, evento="ALF_NODE_READ", usrid=principal.user_id, iporig=ip, detalle=f"Metadatos consultados exitosamente: {node_id}")
+        create_evento(db, evento="ALF_NODE_READ", usrid=principal.user_id, iporig=ip, detalle=f"Metadatos consultados exitosamente: {parsed_id}")
         return metadata
     except Exception as e:
-        handle_alfresco_exceptions(e, db, node_id, ip)
+        handle_alfresco_exceptions(e, db, parsed_id, ip)
 
 @router.get("/nodes/{node_id}/content")
 async def get_node_content(
-    node_id: UUID,
+    node_id: str,
     request: Request,
     db: Session = Depends(get_db),
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
     ip = request.client.host if request.client else None
+    parsed_id = parse_node_id(node_id)
     
     try:
-        metadata = await client.get_node_metadata(node_id)
+        metadata = await client.get_node_metadata(parsed_id)
         if not metadata.is_file:
             create_evento(db, evento="ALF_CONT_ERR", iporig=ip, detalle=f"Nodo no es archivo: {node_id}")
             raise HTTPException(status_code=422, detail="El nodo solicitado no es un archivo")
@@ -105,12 +116,12 @@ async def get_node_content(
             create_evento(db, evento="ALF_CONT_ERR", iporig=ip, detalle=f"Nodo no es PDF: {node_id}")
             raise HTTPException(status_code=415, detail="El documento no es un PDF")
     except Exception as e:
-        handle_alfresco_exceptions(e, db, node_id, ip)
+        handle_alfresco_exceptions(e, db, parsed_id, ip)
 
     try:
-        temp_path, downloaded_size, final_hash = await client.download_node_content(node_id)
+        temp_path, downloaded_size, final_hash = await client.download_node_content(parsed_id)
     except Exception as e:
-        handle_alfresco_exceptions(e, db, node_id, ip)
+        handle_alfresco_exceptions(e, db, parsed_id, ip)
         
     try:
         create_evento(
@@ -118,7 +129,7 @@ async def get_node_content(
             evento="ALF_PDF_DOWN", 
             usrid=principal.user_id,
             iporig=ip, 
-            detalle=f"nodeId: {node_id}, tamaño: {downloaded_size}, hash: {final_hash}, resultado: OK"
+            detalle=f"nodeId: {parsed_id}, tamaño: {downloaded_size}, hash: {final_hash}, resultado: OK"
         )
     except Exception as e:
         logger.error(f"Fallo al guardar auditoría tras descarga exitosa: {e}")
@@ -182,3 +193,14 @@ async def search_alfresco_documents(
         return await client.search_documents(q, max_items=max_items)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Error al buscar en Alfresco: {str(exc)}") from exc
+
+@router.get("/usuarios/buscar")
+async def search_alfresco_users(
+    q: str,
+    max_items: int = 20,
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    try:
+        return await client.search_users(q, max_items=max_items)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Error al buscar usuarios en Alfresco: {str(exc)}") from exc
