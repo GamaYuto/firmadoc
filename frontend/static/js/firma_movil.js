@@ -40,7 +40,7 @@ function resizeCanvas() {
 
 function initPad() {
   pad = new window.SignaturePad(canvas, {
-    backgroundColor: "rgb(255, 255, 255)",
+    backgroundColor: "rgba(0, 0, 0, 0)",
     penColor: "rgb(0, 0, 0)",
   });
   resizeCanvas();
