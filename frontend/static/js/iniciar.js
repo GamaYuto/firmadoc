@@ -42,17 +42,13 @@ async function init() {
     thumbs: document.querySelector("#thumbs"),
     status: pageStatus,
     editable: true,
+    onSelectionChange: (pos) => {
+      currentPosition = pos;
+      confirmPositionBtn.disabled = !pos;
+    }
   });
-
-  viewer.on("position-selected", (pos) => {
-    currentPosition = pos;
-    confirmPositionBtn.disabled = false;
-  });
-
-  viewer.on("position-cleared", () => {
-    currentPosition = null;
-    confirmPositionBtn.disabled = true;
-  });
+  
+  viewer.signer = "firmante";
 
   bindControls();
   await loadDocumentInfo();
@@ -166,7 +162,7 @@ async function confirmPreparation() {
       height: currentPosition.alto
     };
 
-    const response = await apiFetch("/api/firma/firmas/iniciar", {
+    const response = await apiFetch("/api/firma/iniciar", {
       method: "POST",
       body: JSON.stringify(payload)
     });
