@@ -268,6 +268,8 @@ class AlfrescoClient:
                 results = []
                 for item in entries:
                     entry = item.get("entry", {})
+                    if not entry.get("enabled", True):
+                        continue
                     results.append({
                         "userName": entry.get("id"),
                         "firstName": entry.get("firstName", ""),
