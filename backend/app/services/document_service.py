@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from uuid import UUID
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
@@ -9,8 +11,12 @@ from app.services.alfresco_client import AlfrescoClient
 from app.services.temporary_artifact_service import TemporaryArtifactService, temporary_artifact_service
 import pymupdf as fitz
 from app.crud.crud_docfir import create_documento, get_active_by_node_version, cancel_documento, get_by_id, mark_error
-from app.crud.crud_audifir import create_evento
+from app.crud.crud_audifir import create_evento, create_evento_tx
 from app.models.docfir import DocFir, EstadoDoc
+from app.models.docfirma import DocFirma, EstadoDocFirma
+from app.models.docpart import DocPart
+from app.models.docpaso import DocPaso
+from app.models.sesionqr import EstadoSesionQr, SesionQr
 from typing import Optional, Any
 import logging
 
@@ -168,18 +174,83 @@ class DocumentService:
             if docfir.estado not in cancelable_states:
                 raise HTTPException(status_code=400, detail=f"No se puede cancelar un proceso en estado {docfir.estado}")
                 
+            now = datetime.now(timezone.utc)
+            cancel_reason = motivo.strip()[:450]
+
+            firmas = db.scalars(
+                select(DocFirma).where(DocFirma.docid == docfir.docid).with_for_update()
+            ).all()
+            for firma in firmas:
+                if firma.estado in (EstadoDocFirma.INICIADA.value, EstadoDocFirma.GENERADA.value):
+                    firma.estado = EstadoDocFirma.CANCELADA.value
+                    firma.motivo = cancel_reason
+                    firma.fecfin = now
+                    firma.revnum += 1
+                    firma.usrmod = actor_user
+                    firma.fecmod = now
+                    create_evento_tx(
+                        db,
+                        evento="FIR_CANC",
+                        enttip="FIRMA",
+                        entid=firma.firid,
+                        docid=docfir.docid,
+                        usrid=actor_user,
+                        iporig=ip,
+                        detalle=f"Intento cancelado con el proceso. Motivo: {cancel_reason}",
+                    )
+
+            sesiones = db.scalars(
+                select(SesionQr)
+                .where(
+                    SesionQr.docid == docfir.docid,
+                    SesionQr.estado == EstadoSesionQr.PENDIENTE.value,
+                )
+                .with_for_update()
+            ).all()
+            for sesion in sesiones:
+                sesion.estado = EstadoSesionQr.CANCELADO.value
+
+            participantes = db.scalars(
+                select(DocPart)
+                .join(DocPaso, DocPaso.dpasid == DocPart.dpasid)
+                .where(DocPaso.docid == docfir.docid)
+                .with_for_update()
+            ).all()
+            for participante in participantes:
+                if participante.estado not in ("COMPLETADO", "RECHAZADO", "OMITIDO", "CANCELADO", "VENCIDO"):
+                    participante.estado = "CANCELADO"
+                    participante.motivo = cancel_reason
+                    participante.fecini = participante.fecini or now
+                    participante.fecfin = now
+                    participante.verlock += 1
+                    participante.usrmod = actor_user
+                    participante.fecmod = now
+
+            pasos = db.scalars(
+                select(DocPaso).where(DocPaso.docid == docfir.docid).with_for_update()
+            ).all()
+            for paso in pasos:
+                if paso.estado not in ("COMPLETADO", "RECHAZADO", "OMITIDO", "CANCELADO", "VENCIDO"):
+                    paso.estado = "CANCELADO"
+                    paso.motivo = cancel_reason
+                    paso.fecini = paso.fecini or now
+                    paso.fecfin = now
+                    paso.verlock += 1
+                    paso.usrmod = actor_user
+                    paso.fecmod = now
+
             cancel_documento(db, docfir, actor_user)
-            
-            # Auditoría
-            evento = create_evento(
+            create_evento_tx(
                 db=db,
                 evento="DOC_CANCEL",
+                enttip="DOCUMENTO",
+                entid=docfir.docid,
+                docid=docfir.docid,
                 usrid=actor_user,
                 iporig=ip,
-                detalle=f"motivo: {motivo[:450]}"
+                detalle=f"motivo: {cancel_reason}",
             )
-            evento.docid = docfir.docid
-            
+
             db.commit()
             db.refresh(docfir)
 

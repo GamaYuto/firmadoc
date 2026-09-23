@@ -85,6 +85,23 @@ class FrontendSignatureService:
 
         version = metadata.version_label or "1.0"
         doc = get_active_by_node_version(db, str(node_id), version)
+        if doc and doc.estado not in (EstadoDoc.BORRADOR.value, EstadoDoc.PREPARADO.value):
+            latest_signature = db.scalars(
+                select(DocFirma)
+                .where(DocFirma.docid == doc.docid)
+                .order_by(DocFirma.secuen.desc(), DocFirma.firid.desc())
+            ).first()
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "ACTIVE_PROCESS",
+                    "message": "Ya existe un proceso activo para este documento",
+                    "docid": doc.docid,
+                    "status": doc.estado,
+                    "firid": latest_signature.firid if latest_signature else None,
+                    "signature_status": latest_signature.estado if latest_signature else None,
+                },
+            )
         if not doc:
             doc = await self.document_service.iniciar_proceso(db, node_id, actor_user, ip)
 
@@ -952,11 +969,7 @@ class FrontendSignatureService:
         user = actor_user.strip().lower()
         if user == participant.usrid:
             return
-        if (
-            self._is_publication_actor(user, doc)
-            and doc.estado in (EstadoDoc.PENDIENTE_PUBLICACION.value, EstadoDoc.COMPLETADO.value)
-            and firma.estado == EstadoDocFirma.COMPLETADA.value
-        ):
+        if self._is_publication_actor(user, doc):
             return
         raise HTTPException(status_code=403, detail="No puede consultar esta firma")
 

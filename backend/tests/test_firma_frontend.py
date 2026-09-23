@@ -12,9 +12,11 @@ except ImportError:  # pragma: no cover
     import fitz  # type: ignore[no-redef]
 
 from app.models.docpart import DocPart
+from app.models.docpaso import DocPaso
 from app.models.docfir import DocFir, EstadoDoc
 from app.models.docfirma import DocFirma, EstadoDocFirma, TipoFirma
 from app.models.firpos import Firpos
+from app.models.sesionqr import SesionQr
 from app.schemas.alfresco import NodeMetadata
 import app.services.frontend_signature_service as frontend_signature_module
 import app.api.firma_frontend as firma_frontend_api
@@ -140,6 +142,144 @@ def _prepare_save_send(client, node_id, tipfir="INTERNA", signer="firmante"):
     sent = client.post(f"/api/firma/preparacion/{prep['docid']}/enviar", headers=headers)
     assert sent.status_code == 200, sent.text
     return prep, saved.json(), sent.json()
+
+
+def test_preparador_genera_qr_asignado_a_otro_firmante(client, db_session, alfresco_mock):
+    _prep, _saved, sent = _prepare_save_send(
+        client,
+        alfresco_mock["node_id"],
+        tipfir="MANUSCRITA",
+        signer="firmante",
+    )
+
+    detail = client.get(
+        f"/api/firma/firmas/{sent['firid']}",
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert detail.status_code == 200, detail.text
+
+    unrelated = client.get(
+        f"/api/firma/firmas/{sent['firid']}",
+        headers={"X-FirmaDoc-User": "usuario_ajeno"},
+    )
+    assert unrelated.status_code == 403
+
+    forbidden_qr = client.post(
+        f"/api/firma/firmas/{sent['firid']}/qr",
+        headers={"X-FirmaDoc-User": "usuario_ajeno"},
+    )
+    assert forbidden_qr.status_code == 403
+
+    created = client.post(
+        f"/api/firma/firmas/{sent['firid']}/qr",
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert created.status_code == 200, created.text
+
+    sesion = db_session.get(SesionQr, created.json()["sesid"])
+    assert sesion is not None
+    assert sesion.usrid == "firmante"
+
+    forbidden = client.post(
+        "/api/firma/movil/confirmar",
+        json={"token": created.json()["token"], "png_data_url": "data:image/png;base64," + base64.b64encode(_png_bytes()).decode("ascii")},
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert forbidden.status_code == 403
+
+
+def test_conflicto_pendiente_publicacion_permite_cancelar_y_recrear(client, db_session, alfresco_mock):
+    _prep, _saved, sent = _prepare_save_send(
+        client,
+        alfresco_mock["node_id"],
+        tipfir="INTERNA",
+        signer="preparador",
+    )
+    completed = client.post(
+        f"/api/firma/firmas/{sent['firid']}/confirmar-interna",
+        json={"confirm": True},
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["document_status"] == EstadoDoc.PENDIENTE_PUBLICACION.value
+
+    start_payload = {
+        "node_id": str(alfresco_mock["node_id"]),
+        "signer_user_id": "yo",
+        "page": 1,
+        "posx": 72,
+        "posy": 96,
+        "width": 180,
+        "height": 70,
+    }
+    conflict = client.post(
+        "/api/firma/iniciar",
+        json=start_payload,
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"] == {
+        "code": "ACTIVE_PROCESS",
+        "message": "Ya existe un proceso activo para este documento",
+        "docid": sent["docid"],
+        "status": EstadoDoc.PENDIENTE_PUBLICACION.value,
+        "firid": sent["firid"],
+        "signature_status": EstadoDocFirma.COMPLETADA.value,
+    }
+
+    cancelled = client.post(
+        f"/api/documentos/{sent['docid']}/cancelar",
+        json={"motivo": "Reemplazar proceso anterior"},
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["estado"] == EstadoDoc.CANCELADO.value
+
+    recreated = client.post(
+        "/api/firma/iniciar",
+        json=start_payload,
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert recreated.status_code == 201, recreated.text
+    assert recreated.json()["docid"] != sent["docid"]
+
+
+def test_cancelar_proceso_invalida_pendientes_y_qr(client, db_session, alfresco_mock):
+    _prep, _saved, sent = _prepare_save_send(
+        client,
+        alfresco_mock["node_id"],
+        tipfir="MANUSCRITA",
+        signer="firmante",
+    )
+    created = client.post(
+        f"/api/firma/firmas/{sent['firid']}/qr",
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert created.status_code == 200, created.text
+
+    cancelled = client.post(
+        f"/api/documentos/{sent['docid']}/cancelar",
+        json={"motivo": "Reemplazar proceso anterior"},
+        headers={"X-FirmaDoc-User": "preparador"},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+
+    firma = db_session.get(DocFirma, sent["firid"])
+    participante = db_session.get(DocPart, sent["parid"])
+    paso = db_session.scalar(select(DocPaso).where(DocPaso.docid == sent["docid"]))
+    sesion = db_session.get(SesionQr, created.json()["sesid"])
+
+    assert firma.estado == EstadoDocFirma.CANCELADA.value
+    assert participante.estado == "CANCELADO"
+    assert paso.estado == "CANCELADO"
+    assert sesion.estado == "CANCELADO"
+
+    pending = client.get(
+        "/api/firma/pendientes",
+        headers={"X-FirmaDoc-User": "firmante"},
+    )
+    assert pending.status_code == 200
+    assert pending.json()["total"] == 0
 
 
 def _prepare_save_send_two_signers(

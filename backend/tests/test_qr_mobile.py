@@ -72,7 +72,7 @@ def test_qr_token_valido_creacion_y_hash():
     sesid, raw_token, fecexp = qr_service.crear_sesion_qr(
         db=db,
         firid=101,
-        usrid="doctor_lopez",
+        requester_user_id="doctor_lopez",
         iporig="192.168.1.50",
     )
     

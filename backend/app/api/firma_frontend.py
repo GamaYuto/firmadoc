@@ -267,7 +267,7 @@ def create_signature_qr_session(
     sesid, token, fecexp = qr_service.crear_sesion_qr(
         db=db,
         firid=firid,
-        usrid=principal.user_id,
+        requester_user_id=principal.user_id,
         iporig=client_ip(request),
     )
     return QrSessionCreateResponse(

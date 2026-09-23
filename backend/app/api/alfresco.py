@@ -33,7 +33,10 @@ def sanitize_filename(name: str) -> str:
         name += ".pdf"
     return name
 
-def parse_node_id(node_id: str) -> UUID:
+def parse_node_id(node_id: str | UUID) -> UUID:
+    if isinstance(node_id, UUID):
+        return node_id
+
     prefix = "workspace://SpacesStore/"
     if node_id.startswith(prefix):
         node_id = node_id[len(prefix):]

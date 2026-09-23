@@ -18,10 +18,17 @@ const signerUserSearch = document.querySelector("#signerUserSearch");
 const userSearchResults = document.querySelector("#userSearchResults");
 const selectedUserDisplay = document.querySelector("#selectedUserDisplay");
 const confirmPositionBtn = document.querySelector("#confirmPosition");
+const activeProcessModal = document.querySelector("#activeProcessModal");
+const activeProcessStatus = document.querySelector("#activeProcessStatus");
+const closeActiveProcessModalBtn = document.querySelector("#closeActiveProcessModal");
+const continueActiveProcessBtn = document.querySelector("#continueActiveProcess");
+const replaceActiveProcessBtn = document.querySelector("#replaceActiveProcess");
 
 let viewer = null;
 let currentPosition = null;
 let searchTimeout = null;
+let activeProcess = null;
+let pendingStartPayload = null;
 
 init().catch((error) => showAlert(alertBox, "danger", error.message));
 
@@ -66,17 +73,31 @@ function bindControls() {
         otherUserField.hidden = false;
       } else {
         otherUserField.hidden = true;
+
+        signerUser.value = "";
+        signerUserSearch.value = "";
+        userSearchResults.innerHTML = "";
+        selectedUserDisplay.textContent = "";
+        selectedUserDisplay.hidden = true;
       }
     });
   });
 
   signerUserSearch.addEventListener("input", (e) => {
     clearTimeout(searchTimeout);
+
+    // Cualquier edición manual invalida la selección anterior.
+    signerUser.value = "";
+    selectedUserDisplay.textContent = "";
+    selectedUserDisplay.hidden = true;
+
     const query = e.target.value.trim();
+
     if (query.length < 2) {
       userSearchResults.innerHTML = "";
       return;
     }
+
     searchTimeout = setTimeout(() => performUserSearch(query), 300);
   });
 
@@ -85,6 +106,9 @@ function bindControls() {
   });
 
   confirmPositionBtn.addEventListener("click", confirmPreparation);
+  closeActiveProcessModalBtn.addEventListener("click", closeActiveProcessModal);
+  continueActiveProcessBtn.addEventListener("click", continueActiveProcess);
+  replaceActiveProcessBtn.addEventListener("click", replaceActiveProcess);
 }
 
 async function performUserSearch(query) {
@@ -139,7 +163,7 @@ async function loadDocumentInfo() {
 
 async function confirmPreparation() {
   if (!currentPosition) return;
-  
+
   const isOther = document.querySelector('input[name="signerType"]:checked').value === "otro";
   let targetUser = "yo";
   if (isOther) {
@@ -150,41 +174,91 @@ async function confirmPreparation() {
     }
   }
 
+  const payload = {
+    node_id: nodeId,
+    signer_user_id: targetUser,
+    page: currentPosition.pagina,
+    posx: currentPosition.posx,
+    posy: currentPosition.posy,
+    width: currentPosition.ancho,
+    height: currentPosition.alto
+  };
+
+  await startSignature(payload);
+}
+
+async function startSignature(payload) {
   try {
     setBusy(confirmPositionBtn, true, "Iniciando proceso...");
-    const payload = {
-      node_id: nodeId,
-      signer_user_id: targetUser,
-      page: currentPosition.pagina,
-      posx: currentPosition.posx,
-      posy: currentPosition.posy,
-      width: currentPosition.ancho,
-      height: currentPosition.alto
-    };
-
     const response = await apiFetch("/api/firma/iniciar", {
       method: "POST",
       body: JSON.stringify(payload)
     });
-
-    let redirectUrl = `/firmas/${response.firid}?user=${encodeURIComponent(userInput.value.trim())}&autoQr=true`;
-    if (returnUrl) {
-      try {
-        const urlValidation = await apiFetch(`/api/firma/validate-return-url?url=${encodeURIComponent(returnUrl)}`);
-        if (urlValidation.url) {
-          redirectUrl += `&returnUrl=${encodeURIComponent(urlValidation.url)}`;
-        } else {
-          console.warn("returnUrl rechazado por el servidor:", returnUrl);
-        }
-      } catch (e) {
-        console.warn("Error validando returnUrl:", e);
-      }
-    }
-    window.location.href = redirectUrl;
-
+    await redirectToSignature(response.firid, true);
   } catch (error) {
+    if (error.status === 409 && error.code === "ACTIVE_PROCESS") {
+      activeProcess = error.detail;
+      pendingStartPayload = payload;
+      activeProcessStatus.textContent = activeProcess.status || "ACTIVO";
+      activeProcessModal.hidden = false;
+      return;
+    }
     showAlert(alertBox, "danger", error.message);
   } finally {
     setBusy(confirmPositionBtn, false);
+  }
+}
+
+async function redirectToSignature(firid, autoQr) {
+  let redirectUrl = "/firmas/" + firid + "?user=" + encodeURIComponent(userInput.value.trim());
+  if (autoQr) {
+    redirectUrl += "&autoQr=true";
+  }
+  if (returnUrl) {
+    try {
+      const validation = await apiFetch("/api/firma/validate-return-url?url=" + encodeURIComponent(returnUrl));
+      if (validation.url) {
+        redirectUrl += "&returnUrl=" + encodeURIComponent(validation.url);
+      }
+    } catch (error) {
+      console.warn("No fue posible validar returnUrl:", error);
+    }
+  }
+  window.location.href = redirectUrl;
+}
+
+function closeActiveProcessModal() {
+  activeProcessModal.hidden = true;
+}
+
+async function continueActiveProcess() {
+  if (!activeProcess?.firid) {
+    showAlert(alertBox, "danger", "El proceso anterior no tiene una firma disponible para continuar");
+    return;
+  }
+  const autoQr = ["INICIADA", "GENERADA"].includes(activeProcess.signature_status);
+  await redirectToSignature(activeProcess.firid, autoQr);
+}
+
+async function replaceActiveProcess() {
+  if (!activeProcess?.docid || !pendingStartPayload) return;
+
+  try {
+    setBusy(replaceActiveProcessBtn, true, "Cancelando...");
+    await apiFetch("/api/documentos/" + activeProcess.docid + "/cancelar", {
+      method: "POST",
+      body: JSON.stringify({
+        motivo: "Cancelado para iniciar un nuevo proceso sobre el mismo documento"
+      })
+    });
+    closeActiveProcessModal();
+    const payload = pendingStartPayload;
+    activeProcess = null;
+    pendingStartPayload = null;
+    await startSignature(payload);
+  } catch (error) {
+    showAlert(alertBox, "danger", error.message);
+  } finally {
+    setBusy(replaceActiveProcessBtn, false);
   }
 }

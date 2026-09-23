@@ -22,7 +22,7 @@ class QrService:
         self,
         db: Session,
         firid: int,
-        usrid: str,
+        requester_user_id: str,
         iporig: Optional[str] = None,
     ) -> tuple[int, str, datetime]:
         firma = db.get(DocFirma, firid)
@@ -37,7 +37,11 @@ class QrService:
             raise HTTPException(status_code=409, detail=f"La firma ya se encuentra {firma.estado}")
 
         participante = db.get(DocPart, firma.parid)
-        if not participante or participante.usrid.lower() != usrid.strip().lower():
+        documento = db.get(DocFir, firma.docid)
+        requester = requester_user_id.strip().lower()
+        is_signer = participante and participante.usrid.lower() == requester
+        is_preparer = documento and (documento.usrcre or "").strip().lower() == requester
+        if not participante or not (is_signer or is_preparer):
             raise HTTPException(status_code=403, detail="No autorizado para generar QR de esta firma")
 
         # Invalidar sesiones QR previas pendientes para esta firma
