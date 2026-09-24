@@ -12,12 +12,23 @@ from sqlalchemy.orm import Session
 from app.models.docfir import DocFir
 from app.models.docfirma import DocFirma, EstadoDocFirma
 from app.models.docpart import DocPart
+from app.models.docpaso import DocPaso
 from app.models.sesionqr import EstadoSesionQr, SesionQr
 from app.schemas.firma_frontend import SignatureResult
 from app.services.frontend_signature_service import frontend_signature_service
 
 
 class QrService:
+    @staticmethod
+    def _assert_handwritten_flow(db: Session, firma: DocFirma) -> None:
+        step = db.scalar(
+            select(DocPaso)
+            .join(DocPart, DocPart.dpasid == DocPaso.dpasid)
+            .where(DocPart.parid == firma.parid)
+        )
+        if not step or step.pastip != "FIRMAR" or firma.tipfir != "MANUSCRITA":
+            raise HTTPException(status_code=404, detail="Sesion QR no encontrada")
+
     def crear_sesion_qr(
         self,
         db: Session,
@@ -28,6 +39,7 @@ class QrService:
         firma = db.get(DocFirma, firid)
         if not firma:
             raise HTTPException(status_code=404, detail="Firma no encontrada")
+        self._assert_handwritten_flow(db, firma)
 
         if firma.estado in (
             EstadoDocFirma.COMPLETADA.value,
@@ -91,6 +103,7 @@ class QrService:
         sesion = db.scalar(select(SesionQr).where(SesionQr.tokhas == tokhas))
         if not sesion:
             raise HTTPException(status_code=404, detail="Sesion QR no encontrada")
+        self._assert_handwritten_flow(db, sesion.firma)
 
         now = datetime.now(timezone.utc)
         if now > sesion.fecexp:
