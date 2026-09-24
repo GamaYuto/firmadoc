@@ -1,5 +1,6 @@
-import { apiFetch, escapeText, setSessionUser, showAlert, setBusy } from "./api.js";
+import { apiFetch, setSessionUser, showAlert, setBusy } from "./api.js?v=12.1";
 import { PdfViewer } from "./pdf-viewer.js";
+import { clearFeedback, showUiError } from "./ui-feedback.js?v=12.1";
 
 const params = new URLSearchParams(window.location.search);
 const nodeId = params.get("nodeId");
@@ -20,6 +21,7 @@ const selectedUserDisplay = document.querySelector("#selectedUserDisplay");
 const confirmPositionBtn = document.querySelector("#confirmPosition");
 const activeProcessModal = document.querySelector("#activeProcessModal");
 const activeProcessStatus = document.querySelector("#activeProcessStatus");
+const activeProcessDescription = document.querySelector("#activeProcessDescription");
 const closeActiveProcessModalBtn = document.querySelector("#closeActiveProcessModal");
 const continueActiveProcessBtn = document.querySelector("#continueActiveProcess");
 const replaceActiveProcessBtn = document.querySelector("#replaceActiveProcess");
@@ -27,10 +29,12 @@ const replaceActiveProcessBtn = document.querySelector("#replaceActiveProcess");
 let viewer = null;
 let currentPosition = null;
 let searchTimeout = null;
+let searchController = null;
 let activeProcess = null;
 let pendingStartPayload = null;
+let cancellationConfirmPending = false;
 
-init().catch((error) => showAlert(alertBox, "danger", error.message));
+init().catch((error) => showUiError(alertBox, error, { onRetry: () => window.location.reload() }));
 
 async function init() {
   if (!nodeId) throw new Error("Se requiere nodeId en la URL");
@@ -52,6 +56,7 @@ async function init() {
     onSelectionChange: (pos) => {
       currentPosition = pos;
       confirmPositionBtn.disabled = !pos;
+      updateWorkflowSteps();
     }
   });
   
@@ -79,7 +84,9 @@ function bindControls() {
         userSearchResults.innerHTML = "";
         selectedUserDisplay.textContent = "";
         selectedUserDisplay.hidden = true;
+        signerUserSearch.setAttribute("aria-expanded", "false");
       }
+      updateWorkflowSteps();
     });
   });
 
@@ -90,11 +97,14 @@ function bindControls() {
     signerUser.value = "";
     selectedUserDisplay.textContent = "";
     selectedUserDisplay.hidden = true;
+    updateWorkflowSteps();
 
     const query = e.target.value.trim();
 
     if (query.length < 2) {
+      searchController?.abort();
       userSearchResults.innerHTML = "";
+      signerUserSearch.setAttribute("aria-expanded", "false");
       return;
     }
 
@@ -112,8 +122,14 @@ function bindControls() {
 }
 
 async function performUserSearch(query) {
+  searchController?.abort();
+  searchController = new AbortController();
+  userSearchResults.innerHTML = '<div class="list-group-item text-muted">Buscando usuarios...</div>';
+  signerUserSearch.setAttribute("aria-expanded", "true");
   try {
-    const results = await apiFetch(`/api/alfresco/usuarios/buscar?q=${encodeURIComponent(query)}`);
+    const results = await apiFetch(`/api/alfresco/usuarios/buscar?q=${encodeURIComponent(query)}`, {
+      signal: searchController.signal,
+    });
     userSearchResults.innerHTML = "";
     if (results.length === 0) {
       userSearchResults.innerHTML = '<div class="list-group-item text-muted">No se encontraron usuarios</div>';
@@ -124,6 +140,7 @@ async function performUserSearch(query) {
       const a = document.createElement("a");
       a.href = "#";
       a.className = "list-group-item list-group-item-action";
+      a.setAttribute("role", "option");
       a.textContent = `${user.displayName} (${user.userName})`;
       a.addEventListener("click", (e) => {
         e.preventDefault();
@@ -132,16 +149,32 @@ async function performUserSearch(query) {
         userSearchResults.innerHTML = "";
         selectedUserDisplay.textContent = `Usuario seleccionado: ${user.displayName} (${user.userName})`;
         selectedUserDisplay.hidden = false;
+        signerUserSearch.setAttribute("aria-expanded", "false");
+        updateWorkflowSteps();
       });
       userSearchResults.appendChild(a);
     });
   } catch (error) {
-    console.error("Error buscando usuarios:", error);
+    if (error?.name === "AbortError") return;
+    userSearchResults.replaceChildren();
+    const errorItem = document.createElement("div");
+    errorItem.className = "list-group-item text-danger";
+    errorItem.textContent = error.message || "No fue posible buscar usuarios.";
+    userSearchResults.append(errorItem);
   }
+}
+
+function updateWorkflowSteps() {
+  const steps = document.querySelectorAll(".workflow-steps li");
+  const isOther = document.querySelector('input[name="signerType"]:checked')?.value === "otro";
+  const signerReady = !isOther || Boolean(signerUser.value.trim());
+  const activeIndex = currentPosition && signerReady ? 2 : signerReady ? 1 : 0;
+  steps.forEach((step, index) => step.classList.toggle("active", index <= activeIndex));
 }
 
 async function loadDocumentInfo() {
   try {
+    clearFeedback(alertBox);
     // Para simplificar y no requerir "pages" desde info, dado que el proceso todavía no existe,
     // llamamos directamente a preparacion/nodeId que sí devuelve pages.
     // OJO: El plan dice "sin crear el proceso", por lo tanto usaremos el endpoint /info.
@@ -157,7 +190,7 @@ async function loadDocumentInfo() {
     await viewer.load(pdfUrl, info.pages || [{page: 1, width: 612, height: 792}], []);
     
   } catch (error) {
-    showAlert(alertBox, "danger", error.message);
+    showUiError(alertBox, error, { onRetry: loadDocumentInfo });
   }
 }
 
@@ -169,7 +202,8 @@ async function confirmPreparation() {
   if (isOther) {
     targetUser = signerUser.value.trim();
     if (!targetUser) {
-      showAlert(alertBox, "danger", "Debe especificar el usuario firmante");
+      signerUserSearch.focus();
+      showAlert(alertBox, "warning", "Seleccione un usuario de los resultados de busqueda.");
       return;
     }
   }
@@ -189,6 +223,7 @@ async function confirmPreparation() {
 
 async function startSignature(payload) {
   try {
+    clearFeedback(alertBox);
     setBusy(confirmPositionBtn, true, "Iniciando proceso...");
     const response = await apiFetch("/api/firma/iniciar", {
       method: "POST",
@@ -200,10 +235,12 @@ async function startSignature(payload) {
       activeProcess = error.detail;
       pendingStartPayload = payload;
       activeProcessStatus.textContent = activeProcess.status || "ACTIVO";
+      resetActiveProcessDialog();
       activeProcessModal.hidden = false;
+      continueActiveProcessBtn.focus();
       return;
     }
-    showAlert(alertBox, "danger", error.message);
+    showUiError(alertBox, error, { onRetry: () => startSignature(payload) });
   } finally {
     setBusy(confirmPositionBtn, false);
   }
@@ -229,9 +266,15 @@ async function redirectToSignature(firid, autoQr) {
 
 function closeActiveProcessModal() {
   activeProcessModal.hidden = true;
+  resetActiveProcessDialog();
+  confirmPositionBtn.focus();
 }
 
 async function continueActiveProcess() {
+  if (cancellationConfirmPending) {
+    resetActiveProcessDialog();
+    return;
+  }
   if (!activeProcess?.firid) {
     showAlert(alertBox, "danger", "El proceso anterior no tiene una firma disponible para continuar");
     return;
@@ -242,6 +285,14 @@ async function continueActiveProcess() {
 
 async function replaceActiveProcess() {
   if (!activeProcess?.docid || !pendingStartPayload) return;
+
+  if (!cancellationConfirmPending) {
+    cancellationConfirmPending = true;
+    activeProcessDescription.textContent = "Al cancelar se descartara el proceso anterior y no podra publicarse. Confirme solo si desea comenzar de nuevo.";
+    continueActiveProcessBtn.textContent = "No, conservar proceso";
+    replaceActiveProcessBtn.textContent = "Confirmar cancelacion";
+    return;
+  }
 
   try {
     setBusy(replaceActiveProcessBtn, true, "Cancelando...");
@@ -257,8 +308,21 @@ async function replaceActiveProcess() {
     pendingStartPayload = null;
     await startSignature(payload);
   } catch (error) {
-    showAlert(alertBox, "danger", error.message);
+    closeActiveProcessModal();
+    showUiError(alertBox, error, { onRetry: loadDocumentInfo });
   } finally {
     setBusy(replaceActiveProcessBtn, false);
+    if (activeProcessModal.hidden) resetActiveProcessDialog();
   }
 }
+
+function resetActiveProcessDialog() {
+  cancellationConfirmPending = false;
+  activeProcessDescription.textContent = "Este documento ya tiene un proceso activo. Puede retomarlo sin perder el trabajo realizado.";
+  continueActiveProcessBtn.textContent = "Continuar proceso anterior";
+  replaceActiveProcessBtn.textContent = "Cancelar anterior y continuar";
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !activeProcessModal.hidden) closeActiveProcessModal();
+});

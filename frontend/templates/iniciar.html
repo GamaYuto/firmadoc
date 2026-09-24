@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FirmaDoc | Iniciar Firma</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=12.1">
   </head>
   <body>
     <header class="app-header">
-      <div class="brand">FirmaDoc</div>
+      <div class="brand-block">
+        <div class="brand">FirmaDoc</div>
+        <span class="brand-context">Preparar firma</span>
+      </div>
       <div class="header-meta">
         <span id="docName">Documento</span>
         <span id="docVersion" class="status-pill">Version</span>
@@ -39,8 +42,17 @@
         <div id="pdfContainer" class="pdf-scroll"></div>
       </section>
 
-      <aside class="config-panel">
+      <aside class="config-panel task-panel">
         <div id="alerts" aria-live="polite"></div>
+        <div class="task-heading">
+          <span class="section-kicker">Preparacion</span>
+          <h1>Configurar firma</h1>
+        </div>
+        <ol class="workflow-steps" aria-label="Progreso de preparacion">
+          <li class="active"><span>1</span> Firmante</li>
+          <li><span>2</span> Posicion</li>
+          <li><span>3</span> Confirmar</li>
+        </ol>
         <section>
           <h2>¿Quién debe firmar?</h2>
           <div class="field">
@@ -53,8 +65,8 @@
           </div>
           <div class="field" id="otherUserField" hidden>
             <label for="signerUser">Firmante:</label>
-            <input id="signerUserSearch" type="text" autocomplete="off" placeholder="Buscar usuario...">
-            <div id="userSearchResults" class="list-group" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto;"></div>
+            <input id="signerUserSearch" type="text" autocomplete="off" placeholder="Buscar usuario..." role="combobox" aria-controls="userSearchResults" aria-expanded="false">
+            <div id="userSearchResults" class="list-group user-search-results" role="listbox"></div>
             <input id="signerUser" type="hidden">
             <p id="selectedUserDisplay" class="text-success small mt-1" hidden></p>
           </div>
@@ -65,7 +77,7 @@
           <div id="positionInfo"><p>Seleccione o dibuje un rectángulo en el documento.</p></div>
         </section>
 
-        <div class="button-row">
+        <div class="button-row panel-actions">
           <button id="deletePosition" class="btn btn-danger" type="button" hidden>Eliminar posicion</button>
           <button id="confirmPosition" class="btn btn-primary" type="button" disabled>Confirmar posición</button>
         </div>
@@ -79,7 +91,7 @@
           <button id="closeActiveProcessModal" class="btn-close-custom" type="button" aria-label="Cerrar">&times;</button>
         </div>
         <div class="modal-body-custom">
-          <p>Este documento ya tiene un proceso activo.</p>
+          <p id="activeProcessDescription">Este documento ya tiene un proceso activo. Puede retomarlo sin perder el trabajo realizado.</p>
           <dl>
             <dt>Estado</dt>
             <dd id="activeProcessStatus"></dd>
@@ -93,6 +105,6 @@
     </div>
 
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
-    <script type="module" src="/static/js/iniciar.js?v=11.4"></script>
+    <script type="module" src="/static/js/iniciar.js?v=12.1"></script>
   </body>
 </html>

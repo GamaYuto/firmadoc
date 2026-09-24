@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FirmaDoc | Firma Móvil</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
     <style>
@@ -56,9 +56,10 @@
         border-radius: 8px;
       }
     </style>
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=12.1">
   </head>
-  <body>
-    <div class="mobile-card">
+  <body class="mobile-body">
+    <main class="mobile-card mobile-signature-shell">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <div class="header-title">
           <span>✍️</span> FirmaDoc Móvil
@@ -69,8 +70,13 @@
       <div id="alerts" aria-live="polite"></div>
 
       <div id="authNotice" class="alert alert-warning" hidden>
-        <p class="mb-2 small">Debe iniciar sesión en este dispositivo como el firmante asignado.</p>
-        <button id="quickLoginBtn" class="btn btn-sm btn-outline-primary w-100" type="button">Identificarse</button>
+        <strong>Identificacion requerida</strong>
+        <p class="mb-2 small">Ingrese el usuario institucional asignado a esta firma.</p>
+        <label class="visually-hidden" for="mobileUserInput">Usuario institucional</label>
+        <div class="mobile-auth-row">
+          <input id="mobileUserInput" class="form-control" type="text" autocomplete="username" placeholder="Usuario institucional">
+          <button id="quickLoginBtn" class="btn btn-outline-primary" type="button">Continuar</button>
+        </div>
       </div>
 
       <div id="sessionContent">
@@ -97,11 +103,11 @@
         <div class="display-4 text-success mb-2">✓</div>
         <h4 class="text-success">Firma Registrada</h4>
         <p class="text-muted">Su firma ha sido incorporada al documento exitosamente.</p>
-        <p class="small text-muted">Ya puede cerrar esta pestaña en su teléfono.</p>
+        <p class="small text-muted">Esta ventana se cerrará automáticamente.</p>
       </div>
-    </div>
+    </main>
 
     <script src="/static/vendor/signature_pad.umd.min.js"></script>
-    <script type="module" src="/static/js/firma_movil.js?v=2"></script>
+    <script type="module" src="/static/js/firma_movil.js?v=12.2"></script>
   </body>
 </html>

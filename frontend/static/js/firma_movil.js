@@ -1,14 +1,15 @@
 import {
   apiFetch,
-  getCurrentSession,
   setSessionUser,
   showAlert,
   setBusy,
-} from "./api.js";
+} from "./api.js?v=12.1";
+import { clearFeedback, showUiError } from "./ui-feedback.js?v=12.1";
 
 const alerts = document.getElementById("alerts");
 const authNotice = document.getElementById("authNotice");
 const quickLoginBtn = document.getElementById("quickLoginBtn");
+const mobileUserInput = document.getElementById("mobileUserInput");
 const sessionContent = document.getElementById("sessionContent");
 const successContent = document.getElementById("successContent");
 const docTitle = document.getElementById("docTitle");
@@ -19,7 +20,6 @@ const confirmBtn = document.getElementById("confirmBtn");
 
 let pad = null;
 let currentToken = null;
-let assignedSigner = null;
 
 function getTokenFromUrl() {
   const match = window.location.pathname.match(/\/firma-movil\/([^/]+)/);
@@ -28,17 +28,22 @@ function getTokenFromUrl() {
 
 function resizeCanvas() {
   if (!canvas) return;
+  const previous = pad && !pad.isEmpty() ? pad.toDataURL("image/png") : null;
   const ratio = Math.max(window.devicePixelRatio || 1, 1);
   canvas.width = canvas.offsetWidth * ratio;
   canvas.height = canvas.offsetHeight * ratio;
   const ctx = canvas.getContext("2d");
   ctx.scale(ratio, ratio);
-  if (pad) {
-    pad.clear();
+  if (pad && previous) {
+    pad.fromDataURL(previous);
   }
 }
 
 function initPad() {
+  if (pad) {
+    resizeCanvas();
+    return;
+  }
   pad = new window.SignaturePad(canvas, {
     backgroundColor: "rgba(0, 0, 0, 0)",
     penColor: "rgb(0, 0, 0)",
@@ -56,8 +61,8 @@ async function loadSession() {
   }
 
   try {
+    clearFeedback(alerts);
     const data = await apiFetch(`/api/firma/movil/sesion/${encodeURIComponent(currentToken)}`);
-    assignedSigner = data.usrid;
     docTitle.textContent = data.docnom || "Documento";
     signerLabel.textContent = `${data.usrid} (${data.tipfir})`;
     authNotice.hidden = true;
@@ -67,22 +72,10 @@ async function loadSession() {
     if (err.status === 401 || err.status === 403) {
       authNotice.hidden = false;
       sessionContent.hidden = true;
-      showAlert(alerts, "warning", err.message || "Identificación requerida para esta firma.");
-      // Si el error contiene el firmante asignado, pre-cargar botón
-      quickLoginBtn.onclick = async () => {
-        try {
-          const userPrompt = prompt("Ingrese su usuario institucional:", "firmante");
-          if (!userPrompt) return;
-          await setSessionUser(userPrompt.trim());
-          alerts.innerHTML = "";
-          await loadSession();
-        } catch (authErr) {
-          showAlert(alerts, "danger", `Error de autenticación: ${authErr.message}`);
-        }
-      };
+      showUiError(alerts, err);
     } else {
       sessionContent.hidden = true;
-      showAlert(alerts, "danger", err.message || "No fue posible cargar la sesión de firma.");
+      showUiError(alerts, err, { onRetry: loadSession });
     }
   }
 }
@@ -113,10 +106,36 @@ confirmBtn.addEventListener("click", async () => {
 
     sessionContent.hidden = true;
     successContent.hidden = false;
+
+    window.setTimeout(() => {
+      window.close();
+    }, 1500);
   } catch (err) {
-    showAlert(alerts, "danger", `Error al registrar firma: ${err.message}`);
+    showUiError(alerts, err, { onRetry: loadSession });
     setBusy(confirmBtn, false, "Confirmar y Enviar Firma");
   }
 });
 
-loadSession();
+quickLoginBtn.addEventListener("click", async () => {
+  const user = mobileUserInput.value.trim();
+  if (!user) {
+    mobileUserInput.focus();
+    showAlert(alerts, "warning", "Ingrese su usuario institucional.");
+    return;
+  }
+  try {
+    setBusy(quickLoginBtn, true, "Validando");
+    await setSessionUser(user);
+    await loadSession();
+  } catch (error) {
+    showUiError(alerts, error);
+  } finally {
+    setBusy(quickLoginBtn, false);
+  }
+});
+
+mobileUserInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") quickLoginBtn.click();
+});
+
+loadSession().catch((error) => showUiError(alerts, error, { onRetry: loadSession }));

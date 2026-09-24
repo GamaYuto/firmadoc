@@ -1,16 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { ApiError, setBusy } from "../static/js/api.js";
 import { buildDraftPayload, hasDirtyState } from "../static/js/preparation-state.js";
 import { RenderSequencer } from "../static/js/render-sequencer.js";
 import { isPngDataUrlWithinLimit, pngDataUrlBinarySize } from "../static/js/signature-utils.js";
 import {
   getPublicationControlState,
   getPublicationErrorAlertType,
+  getResultPdfSource,
+  getStatusLabel,
   isLocalResultReady,
   isPreparationEditableStatus,
   isSignatureAttemptActive,
 } from "../static/js/workflow-state.js";
+import { describeUiError } from "../static/js/ui-feedback.js";
 
 test("buildDraftPayload conserva propiedades individuales", () => {
   const payload = buildDraftPayload([
@@ -87,6 +91,12 @@ test("workflow-state distingue edicion, firma activa y resultado local", () => {
   assert.equal(isLocalResultReady("FIRMADO_PARCIAL"), false);
 });
 
+test("resultado PDF usa artefacto local antes de publicar y Alfresco despues", () => {
+  assert.equal(getResultPdfSource("PENDIENTE_PUBLICACION"), "LOCAL");
+  assert.equal(getResultPdfSource("COMPLETADO"), "ALFRESCO");
+  assert.equal(getResultPdfSource("FIRMADO_PARCIAL"), null);
+});
+
 test("publication control refleja autorizacion e interruptor", () => {
   assert.deepEqual(
     getPublicationControlState({ can_publish_alfresco: true, alfresco_write_enabled: false }),
@@ -105,6 +115,36 @@ test("publication errors muestran conflictos y expiraciones como informativos", 
   assert.equal(getPublicationErrorAlertType({ status: 410 }), "info");
   assert.equal(getPublicationErrorAlertType({ code: "PUBLICATION_RECONCILIATION_REQUIRED" }), "info");
   assert.equal(getPublicationErrorAlertType({ status: 500 }), "danger");
+});
+
+test("describeUiError distingue permisos, expiracion y fallos temporales", () => {
+  assert.equal(describeUiError({ status: 403, message: "No autorizado" }).title, "Acceso restringido");
+  assert.equal(describeUiError({ status: 410, message: "Expirada" }).title, "Sesion expirada");
+  assert.equal(describeUiError({ status: 503, message: "No disponible" }).retryable, true);
+  assert.equal(describeUiError({ code: "PUBLICATION_RECONCILIATION_REQUIRED" }).title, "Publicacion por verificar");
+});
+
+test("getStatusLabel traduce estados del flujo sin alterar desconocidos", () => {
+  assert.equal(getStatusLabel("PENDIENTE_PUBLICACION"), "Listo para publicar");
+  assert.equal(getStatusLabel("COMPLETADO"), "Publicado en Alfresco");
+  assert.equal(getStatusLabel("ESTADO_NUEVO"), "ESTADO NUEVO");
+});
+
+test("ApiError conserva codigo y referencia de operacion", () => {
+  const error = new ApiError("Conflicto", { status: 409, code: "REMOTE_VERSION_CONFLICT", operationId: "op-123" });
+  assert.equal(error.status, 409);
+  assert.equal(error.code, "REMOTE_VERSION_CONFLICT");
+  assert.equal(error.operationId, "op-123");
+});
+
+test("setBusy restaura el estado deshabilitado original", () => {
+  const button = { disabled: true, textContent: "Publicar", dataset: {} };
+  setBusy(button, true, "Publicando");
+  assert.equal(button.disabled, true);
+  assert.equal(button.textContent, "Publicando");
+  setBusy(button, false);
+  assert.equal(button.disabled, true);
+  assert.equal(button.textContent, "Publicar");
 });
 
 test("pngDataUrlBinarySize calcula bytes reales", () => {

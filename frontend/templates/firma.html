@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FirmaDoc | Firmar</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=12.1">
   </head>
   <body>
     <header class="app-header">
-      <div class="brand">FirmaDoc</div>
+      <div class="brand-block">
+        <div class="brand">FirmaDoc</div>
+        <span class="brand-context">Firma de documento</span>
+      </div>
       <div class="header-meta">
         <span id="docName">Documento</span>
         <span id="docStatus" class="status-pill">Estado</span>
@@ -40,11 +43,15 @@
         <div id="pdfContainer" class="pdf-scroll"></div>
       </section>
 
-      <aside class="config-panel">
+      <aside class="config-panel task-panel">
         <div id="alerts" aria-live="polite"></div>
+        <div class="task-heading">
+          <span id="taskKicker" class="section-kicker">Accion pendiente</span>
+          <h1 id="taskTitle">Revisar y firmar</h1>
+        </div>
         <section>
           <h2>Firmante</h2>
-          <p id="signerName"></p>
+          <p id="signerName" class="signer-name"></p>
           <p>Declaro que he revisado el documento y confirmo mi intencion de firmarlo mediante FirmaDoc.</p>
         </section>
 
@@ -53,9 +60,9 @@
           <div class="signature-pad-wrap">
             <canvas id="signatureCanvas" aria-label="Area de captura de firma"></canvas>
           </div>
-          <div class="button-row">
-            <button id="clearButton" class="btn" type="button">Limpiar</button>
-            <button id="openQrButton" class="btn btn-outline-primary" type="button" title="Generar código QR para firmar desde smartphone">📱 Firmar con móvil (QR)</button>
+          <div class="button-row signature-tools">
+            <button id="clearButton" class="btn" type="button" hidden>Limpiar</button>
+            <button id="openQrButton" class="btn btn-outline-primary" type="button">Firmar desde el movil</button>
           </div>
         </section>
 
@@ -64,14 +71,14 @@
           <p>Confirmar firma electronica autenticada.</p>
         </section>
 
-        <section class="properties">
+        <section class="properties" hidden>
           <h2>Previsualizacion</h2>
           <div id="signaturePreview" class="preview-box">Sin previsualizacion</div>
         </section>
 
-        <div class="button-row">
-          <button id="cancelButton" class="btn btn-secondary" type="button">Cancelar</button>
-          <button id="confirmButton" class="btn btn-primary" type="button">Confirmar</button>
+        <div class="button-row panel-actions">
+          <button id="cancelButton" class="btn btn-secondary" type="button" hidden>Cancelar</button>
+          <button id="confirmButton" class="btn btn-primary" type="button" hidden>Confirmar</button>
         </div>
 
         <section id="resultPanel" class="properties" hidden></section>
@@ -79,10 +86,10 @@
     </main>
 
     <!-- Modal QR Móvil -->
-    <div id="qrModal" class="modal-backdrop-custom" hidden>
+    <div id="qrModal" class="modal-backdrop-custom" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle" hidden>
       <div class="modal-dialog-custom">
         <div class="modal-header-custom">
-          <h3>Firmar desde el teléfono móvil</h3>
+          <h3 id="qrModalTitle">Firmar desde el telefono movil</h3>
           <button id="closeQrModal" class="btn-close-custom" type="button" aria-label="Cerrar">&times;</button>
         </div>
         <div class="modal-body-custom">
@@ -108,6 +115,6 @@
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
     <script src="/static/vendor/qrcode.min.js"></script>
     <script src="/static/vendor/signature_pad.umd.min.js"></script>
-    <script type="module" src="/static/js/firma.js?v=11.2"></script>
+    <script type="module" src="/static/js/firma.js?v=12.2"></script>
   </body>
 </html>

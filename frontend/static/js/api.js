@@ -1,5 +1,19 @@
 let currentCsrfToken = null;
 
+// Shared HTTP error contract for every frontend flow.
+
+export class ApiError extends Error {
+  constructor(message, { status = 0, code = "REQUEST_FAILED", detail = null, operationId = "", sourceVersion = "" } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.detail = detail;
+    this.operationId = operationId;
+    this.sourceVersion = sourceVersion;
+  }
+}
+
 export function getCsrfToken() {
   return currentCsrfToken;
 }
@@ -9,14 +23,14 @@ export function setCsrfToken(token) {
 }
 
 export async function setSessionUser(userId) {
-  const response = await fetch("/api/auth/session", {
+  const response = await request("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Accept": "application/json" },
     body: JSON.stringify({ user_id: userId }),
     credentials: "same-origin",
   });
   if (!response.ok) {
-    throw new Error("No fue posible establecer la sesion");
+    throw await buildApiError(response);
   }
   const data = await response.json();
   if (data && data.csrf_token) {
@@ -59,32 +73,9 @@ export async function apiFetch(path, options = {}) {
       headers.set("X-FirmaDoc-CSRF", currentCsrfToken);
     }
   }
-  const response = await fetch(path, {
-    ...options,
-    headers,
-    credentials: options.credentials || "same-origin",
-  });
+  const response = await request(path, { ...options, headers });
   if (!response.ok) {
-    let message = "No fue posible completar la operacion";
-    let detail = null;
-    try {
-      const data = await response.json();
-      detail = data.detail;
-      if (typeof detail === "string") {
-        message = detail;
-      } else if (detail && typeof detail.message === "string") {
-        message = detail.message;
-      }
-    } catch {
-      message = response.statusText || message;
-    }
-    const error = new Error(message);
-    error.status = response.status;
-    if (detail && typeof detail === "object") {
-      error.code = detail.code;
-      error.detail = detail;
-    }
-    throw error;
+    throw await buildApiError(response);
   }
   if (response.status === 204) {
     return null;
@@ -104,34 +95,54 @@ export async function apiFetchBinary(path, options = {}) {
       headers.set("X-FirmaDoc-CSRF", currentCsrfToken);
     }
   }
-  const response = await fetch(path, {
-    ...options,
-    headers,
-    credentials: options.credentials || "same-origin",
-  });
+  const response = await request(path, { ...options, headers });
   if (!response.ok) {
-    let message = "No fue posible completar la operacion";
-    let detail = null;
-    try {
-      const data = await response.json();
-      detail = data.detail;
-      if (typeof detail === "string") {
-        message = detail;
-      } else if (detail && typeof detail.message === "string") {
-        message = detail.message;
-      }
-    } catch {
-      message = response.statusText || message;
-    }
-    const error = new Error(message);
-    error.status = response.status;
-    if (detail && typeof detail === "object") {
-      error.code = detail.code;
-      error.detail = detail;
-    }
-    throw error;
+    throw await buildApiError(response);
   }
   return response.blob();
+}
+
+async function request(path, options) {
+  try {
+    return await fetch(path, {
+      ...options,
+      credentials: options.credentials || "same-origin",
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw new ApiError("No fue posible conectar con FirmaDoc. Compruebe la conexion e intente nuevamente.", {
+      code: "NETWORK_ERROR",
+    });
+  }
+}
+
+async function buildApiError(response) {
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  const detail = payload?.detail ?? payload;
+  let message = "No fue posible completar la operacion";
+  if (typeof detail === "string" && detail.trim()) {
+    message = detail;
+  } else if (detail && typeof detail.message === "string" && detail.message.trim()) {
+    message = detail.message;
+  } else if (Array.isArray(detail) && detail.length) {
+    message = detail.map((item) => item?.msg).filter(Boolean).join(" ") || message;
+  } else if (response.statusText) {
+    message = response.statusText;
+  }
+
+  return new ApiError(message, {
+    status: response.status,
+    code: detail?.code || `HTTP_${response.status}`,
+    detail,
+    operationId: detail?.operation_id || "",
+    sourceVersion: detail?.source_version || "",
+  });
 }
 
 export function escapeText(value) {
@@ -154,12 +165,19 @@ export function showAlert(container, type, message) {
 export function setBusy(button, busy, label = "Procesando") {
   if (!button) return;
   if (busy) {
-    button.dataset.originalText = button.textContent;
+    if (button.dataset.busy !== "true") {
+      button.dataset.originalText = button.textContent;
+      button.dataset.wasDisabled = String(button.disabled);
+    }
+    button.dataset.busy = "true";
     button.disabled = true;
     button.textContent = label;
   } else {
-    button.disabled = false;
+    button.disabled = button.dataset.wasDisabled === "true";
     button.textContent = button.dataset.originalText || button.textContent;
+    delete button.dataset.busy;
+    delete button.dataset.wasDisabled;
+    delete button.dataset.originalText;
   }
 }
 
