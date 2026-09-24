@@ -119,7 +119,8 @@ test("publication errors muestran conflictos y expiraciones como informativos", 
 });
 
 test("describeUiError distingue permisos, expiracion y fallos temporales", () => {
-  assert.equal(describeUiError({ status: 403, message: "No autorizado" }).title, "Acceso restringido");
+  assert.equal(describeUiError({ status: 401, message: "Debe autenticarse" }).title, "Autenticacion requerida");
+  assert.equal(describeUiError({ status: 403, message: "No autorizado" }).title, "Usuario no autorizado");
   assert.equal(describeUiError({ status: 410, message: "Expirada" }).title, "Sesion expirada");
   assert.equal(describeUiError({ status: 503, message: "No disponible" }).retryable, true);
   assert.equal(describeUiError({ code: "PUBLICATION_RECONCILIATION_REQUIRED" }).title, "Publicacion por verificar");

@@ -36,10 +36,22 @@ export function describeUiError(error, context = "general") {
     };
   }
   if (status === 401) {
-    return { type: "warning", title: "Sesion requerida", message: fallback, actionLabel: "Volver a intentar", retryable: true };
+    return {
+      type: "warning",
+      title: "Autenticacion requerida",
+      message: fallback || "Debe autenticarse para revisar esta solicitud.",
+      actionLabel: "Ingresar",
+      retryable: true,
+    };
   }
   if (status === 403) {
-    return { type: "danger", title: "Acceso restringido", message: fallback, retryable: false };
+    return {
+      type: "warning",
+      title: "Usuario no autorizado",
+      message: fallback || "La solicitud está asignada a otro usuario de Gerencia.",
+      actionLabel: "Cambiar usuario",
+      retryable: true,
+    };
   }
   if (status === 404) {
     return { type: "warning", title: "Recurso no disponible", message: fallback, retryable: false };

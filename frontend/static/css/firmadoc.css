@@ -419,6 +419,14 @@ body {
   margin-top: 20px;
 }
 
+.authentication-dialog {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.authentication-dialog .modal-footer-custom .btn {
+  min-width: 120px;
+}
+
 @media (max-width: 900px) {
   .field:has(input[name="signerType"]) {
     grid-template-columns: 1fr;

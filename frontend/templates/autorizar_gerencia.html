@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FirmaDoc | Autorizaci?n de Gerencia</title>
+    <title>FirmaDoc | Autorizaci&oacute;n de Gerencia</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
     <link rel="stylesheet" href="/static/css/firmadoc.css?v=13.0">
   </head>
@@ -11,11 +11,11 @@
     <header class="app-header">
       <div class="brand-block">
         <div class="brand">FirmaDoc</div>
-        <span class="brand-context">Autorizaci?n de Gerencia</span>
+        <span class="brand-context">Autorizaci&oacute;n de Gerencia</span>
       </div>
       <div class="header-meta">
-        <span class="status-pill">Revisi?n protegida</span>
-        <label>Usuario Autenticado <input data-user-input type="text" autocomplete="off"></label>
+        <span class="status-pill">Revisi&oacute;n protegida</span>
+        <label>Usuario: <input data-user-input type="text" autocomplete="off" readonly value="No autenticado"></label>
       </div>
     </header>
 
@@ -36,8 +36,8 @@
 
       <aside class="manager-approval-panel">
         <div id="alerts" aria-live="polite"></div>
-        <span class="section-kicker">Decisi?n requerida</span>
-        <h1>Autorizaci?n de Gerencia</h1>
+        <span class="section-kicker">Decisi&oacute;n requerida</span>
+        <h1>Autorizaci&oacute;n de Gerencia</h1>
         <dl>
           <dt>Documento</dt><dd id="documentName">Validando solicitud...</dd>
           <dt>Solicitante</dt><dd id="requesterName"></dd>
@@ -52,6 +52,27 @@
       </aside>
     </main>
 
-    <script type="module" src="/static/js/autorizar_gerencia.js?v=13.0"></script>
+    <div id="authenticationModal" class="modal-backdrop-custom" role="dialog" aria-modal="true" aria-labelledby="authenticationTitle" hidden>
+      <div class="modal-dialog-custom authentication-dialog">
+        <div class="modal-header-custom">
+          <h3 id="authenticationTitle">Autenticaci&oacute;n requerida</h3>
+        </div>
+        <form id="authenticationForm">
+          <div class="modal-body-custom">
+            <p>Identif&iacute;quese para revisar esta solicitud de Gerencia.</p>
+            <div id="authenticationError" class="alert alert-danger" role="alert" hidden></div>
+            <div class="field">
+              <label for="authenticationUser">Usuario Alfresco</label>
+              <input id="authenticationUser" name="user_id" type="text" autocomplete="username" required>
+            </div>
+          </div>
+          <div class="modal-footer-custom">
+            <button id="authenticationSubmit" class="btn btn-primary" type="submit">Continuar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script type="module" src="/static/js/autorizar_gerencia.js?v=13.1"></script>
   </body>
 </html>
