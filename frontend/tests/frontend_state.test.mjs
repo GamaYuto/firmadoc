@@ -15,6 +15,7 @@ import {
   isSignatureAttemptActive,
 } from "../static/js/workflow-state.js";
 import { describeUiError } from "../static/js/ui-feedback.js";
+import { consumeApprovalToken } from "../static/js/manager-approval-token.js";
 
 test("buildDraftPayload conserva propiedades individuales", () => {
   const payload = buildDraftPayload([
@@ -152,4 +153,14 @@ test("pngDataUrlBinarySize calcula bytes reales", () => {
   assert.equal(pngDataUrlBinarySize(dataUrl), 5);
   assert.equal(isPngDataUrlWithinLimit(dataUrl, 5), true);
   assert.equal(isPngDataUrlWithinLimit(dataUrl, 4), false);
+});
+
+test("token de Gerencia se consume y desaparece inmediatamente de la URL", () => {
+  const calls = [];
+  const token = consumeApprovalToken(
+    { hash: "#token-secreto-de-gerencia" },
+    { replaceState: (...args) => calls.push(args) },
+  );
+  assert.equal(token, "token-secreto-de-gerencia");
+  assert.deepEqual(calls, [[null, "", "/autorizar-gerencia"]]);
 });

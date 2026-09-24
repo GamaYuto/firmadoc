@@ -696,7 +696,7 @@ def test_cierre_local_pendiente_publicacion_y_resultado_pdf(client, db_session, 
     )
     assert pdf_forbidden.status_code == 403
 
-    prep_after = client.get(f"/api/firma/preparacion/{alfresco_mock['node_id']}", headers=headers)
+    prep_after = client.get(f"/api/firma/preparacion/doc/{prep['docid']}", headers=headers)
     assert prep_after.status_code == 200
     assert prep_after.json()["status"] == EstadoDoc.PENDIENTE_PUBLICACION.value
     assert prep_after.json()["active_firid"] is None
@@ -741,6 +741,7 @@ def test_cierre_local_pendiente_publicacion_y_resultado_pdf(client, db_session, 
 
 
 def test_publicar_alfresco_rechaza_firmante_y_bloquea_preparador(client, alfresco_mock, monkeypatch):
+    monkeypatch.setattr(firma_frontend_api.settings, "FIRMADOC_ALFRESCO_WRITE_ENABLED", False)
     _prep, _saved, sent = _prepare_save_send(client, alfresco_mock["node_id"], tipfir="INTERNA", signer="firmante")
     signed = client.post(
         f"/api/firma/firmas/{sent['firid']}/confirmar-interna",

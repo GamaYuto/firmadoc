@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FirmaDoc | Autorizaci?n de Gerencia</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=13.0">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand-block">
+        <div class="brand">FirmaDoc</div>
+        <span class="brand-context">Autorizaci?n de Gerencia</span>
+      </div>
+      <div class="header-meta">
+        <span class="status-pill">Revisi?n protegida</span>
+        <label>Usuario Autenticado <input data-user-input type="text" autocomplete="off"></label>
+      </div>
+    </header>
+
+    <main class="manager-approval-layout">
+      <section class="viewer-column" aria-label="Documento para autorizar">
+        <div class="viewer-toolbar">
+          <div id="pageStatus" role="status"></div>
+          <label>Zoom
+            <select id="zoomSelect">
+              <option value="0.75">75%</option>
+              <option value="1" selected>100%</option>
+              <option value="1.5">150%</option>
+            </select>
+          </label>
+        </div>
+        <div id="pdfContainer" class="pdf-scroll"></div>
+      </section>
+
+      <aside class="manager-approval-panel">
+        <div id="alerts" aria-live="polite"></div>
+        <span class="section-kicker">Decisi?n requerida</span>
+        <h1>Autorizaci?n de Gerencia</h1>
+        <dl>
+          <dt>Documento</dt><dd id="documentName">Validando solicitud...</dd>
+          <dt>Solicitante</dt><dd id="requesterName"></dd>
+          <dt>Fecha</dt><dd id="requestedAt"></dd>
+          <dt>Autoriza</dt><dd id="managerName"></dd>
+          <dt>Cargo</dt><dd id="managerRole"></dd>
+        </dl>
+        <div class="manager-approval-actions">
+          <button id="authorizeButton" class="btn btn-primary" type="button" disabled>Autorizar</button>
+          <button id="rejectButton" class="btn btn-danger" type="button" disabled>No autorizar</button>
+        </div>
+      </aside>
+    </main>
+
+    <script type="module" src="/static/js/autorizar_gerencia.js?v=13.0"></script>
+  </body>
+</html>

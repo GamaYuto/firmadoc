@@ -14,10 +14,20 @@ except ImportError:
 from app.models.docfir import DocFir, EstadoDoc
 from app.models.docfirma import DocFirma, EstadoDocFirma, TipoFirma
 from app.models.docpart import DocPart
+from app.models.docpaso import DocPaso
 from app.models.sesionqr import EstadoSesionQr, SesionQr
 from app.schemas.firma_frontend import SignatureResult
 from app.services.qr_service import qr_service
 from app.services.pdf_signature_service import pdf_signature_service
+
+
+def _handwritten_context():
+    firma = MagicMock(spec=DocFirma)
+    firma.tipfir = TipoFirma.MANUSCRITA.value
+    firma.parid = 12
+    step = MagicMock(spec=DocPaso)
+    step.pastip = "FIRMAR"
+    return firma, step
 
 
 def _create_sample_pdf(text_label: str = "Base Document") -> bytes:
@@ -51,6 +61,7 @@ def test_qr_token_valido_creacion_y_hash():
     mock_firma.docid = 50
     mock_firma.parid = 12
     mock_firma.estado = EstadoDocFirma.INICIADA.value
+    mock_firma.tipfir = TipoFirma.MANUSCRITA.value
     
     mock_part = MagicMock(spec=DocPart)
     mock_part.parid = 12
@@ -64,6 +75,8 @@ def test_qr_token_valido_creacion_y_hash():
         return None
         
     db.get.side_effect = mock_get
+    _firma, step = _handwritten_context()
+    db.scalar.return_value = step
     db.scalars.return_value.all.return_value = []
     
     added_objects = []
@@ -108,7 +121,9 @@ def test_qr_token_expirado():
     sesion.estado = EstadoSesionQr.PENDIENTE.value
     sesion.fecexp = datetime.now(timezone.utc) - timedelta(minutes=1)  # Ya venció
     
-    db.scalar.return_value = sesion
+    firma, step = _handwritten_context()
+    sesion.firma = firma
+    db.scalar.side_effect = [sesion, step]
     
     # obtener_sesion_movil debe levantar 410 Gone
     with pytest.raises(HTTPException) as exc_info:
@@ -128,7 +143,10 @@ def test_qr_consultar_estado_expira_al_consultar():
     sesion.estado = EstadoSesionQr.PENDIENTE.value
     sesion.fecexp = datetime.now(timezone.utc) - timedelta(seconds=10)
     
+    firma, step = _handwritten_context()
+    sesion.firma = firma
     db.get.return_value = sesion
+    db.scalar.return_value = step
     
     estado = qr_service.consultar_estado_qr(db, 303)
     assert estado == EstadoSesionQr.EXPIRADO.value
@@ -151,7 +169,9 @@ def test_qr_token_reutilizado():
     sesion.estado = EstadoSesionQr.USADO.value
     sesion.fecexp = datetime.now(timezone.utc) + timedelta(minutes=5)
     
-    db.scalar.return_value = sesion
+    firma, step = _handwritten_context()
+    sesion.firma = firma
+    db.scalar.side_effect = [sesion, step]
     
     with pytest.raises(HTTPException) as exc_info:
         qr_service.obtener_sesion_movil(db, raw_token)
@@ -191,7 +211,9 @@ async def _async_test_qr_usuario_incorrecto():
     sesion.estado = EstadoSesionQr.PENDIENTE.value
     sesion.fecexp = datetime.now(timezone.utc) + timedelta(minutes=5)
     
-    db.scalar.return_value = sesion
+    firma, step = _handwritten_context()
+    sesion.firma = firma
+    db.scalar.side_effect = [sesion, step]
     
     with pytest.raises(HTTPException) as exc_info:
         await qr_service.completar_firma_movil(
@@ -228,7 +250,9 @@ async def _async_test_firma_movil_correcta():
     sesion.estado = EstadoSesionQr.PENDIENTE.value
     sesion.fecexp = datetime.now(timezone.utc) + timedelta(minutes=8)
     
-    db.scalar.return_value = sesion
+    firma, step = _handwritten_context()
+    sesion.firma = firma
+    db.scalar.side_effect = [sesion, step]
     
     expected_result = SignatureResult(
         firid=22,
@@ -358,4 +382,3 @@ def test_endpoint_movil_sesion_endpoint(client):
         )
         assert response_impostor.status_code == 403
         assert "no corresponde al firmante asignado" in response_impostor.json()["detail"]
-

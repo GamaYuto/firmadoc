@@ -238,3 +238,51 @@ class MobileSignatureConfirm(BaseModel):
         if not value.startswith("data:image/png;base64,"):
             raise ValueError("La firma debe enviarse como PNG en data URL")
         return value
+
+
+class ManagerApprovalCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    node_id: str = Field(..., min_length=36, max_length=64)
+    page: int = Field(..., gt=0)
+    posx: Decimal = Field(..., ge=0)
+    posy: Decimal = Field(..., ge=0)
+    width: Decimal = Field(..., gt=0)
+    height: Decimal = Field(..., gt=0)
+
+
+class ManagerApprovalCreateResponse(BaseModel):
+    firid: int
+    docid: int
+    status: Literal["PENDIENTE"]
+    approval_url: str
+    expires_at: datetime
+
+
+class ManagerApprovalStatus(BaseModel):
+    firid: int
+    docid: int
+    status: Literal["PENDIENTE", "AUTORIZADO", "RECHAZADO", "CONFLICTO", "EXPIRADO"]
+    message: str
+    result_url: Optional[str] = None
+
+
+class ManagerApprovalDetail(BaseModel):
+    firid: int
+    docid: int
+    document_name: str
+    requester_name: str
+    requested_at: datetime
+    manager_name: str
+    manager_role: str
+    status: Literal["PENDIENTE"]
+
+
+class ManagerApprovalToken(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(..., min_length=32, max_length=100)
+
+
+class ManagerApprovalReject(ManagerApprovalToken):
+    reason: str = Field(default="No autorizado por Gerencia", min_length=3, max_length=500)

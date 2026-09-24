@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -24,6 +25,12 @@ from app.schemas.firma_frontend import (
     SignatureResult,
     PreparationParticipant,
     PreparationPosition,
+    ManagerApprovalCreate,
+    ManagerApprovalCreateResponse,
+    ManagerApprovalDetail,
+    ManagerApprovalReject,
+    ManagerApprovalStatus,
+    ManagerApprovalToken,
 )
 from pydantic import BaseModel
 from urllib.parse import urlparse
@@ -32,6 +39,7 @@ from app.services.alfresco_service import AlfrescoService
 from app.services.signature_exceptions import SignaturePublicationError
 from app.services.frontend_signature_service import frontend_signature_service
 from app.services.qr_service import qr_service
+from app.services.manager_approval_service import manager_approval_service
 
 from app.core.security import AuthenticatedPrincipal, get_current_principal
 
@@ -111,6 +119,92 @@ async def start_signature_flow(
     )
     
     return await frontend_signature_service.save_and_send(db, prep.docid, draft_payload, principal.user_id, ip)
+
+
+@router.post(
+    "/gerencia/solicitudes",
+    response_model=ManagerApprovalCreateResponse,
+    status_code=201,
+)
+async def create_manager_approval(
+    payload: ManagerApprovalCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    return await manager_approval_service.create_request(
+        db,
+        payload,
+        requester_user=principal.user_id,
+        requester_name=principal.nombre_completo,
+        ip=client_ip(request),
+    )
+
+
+@router.get(
+    "/gerencia/solicitudes/{firid}/estado",
+    response_model=ManagerApprovalStatus,
+)
+def get_manager_approval_status(
+    firid: int,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    return manager_approval_service.status(db, firid, principal.user_id)
+
+
+@router.get("/gerencia/solicitud", response_model=ManagerApprovalDetail)
+async def get_manager_approval_detail(
+    request: Request,
+    approval_token: str = Header(..., alias="X-FirmaDoc-Approval"),
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    return await manager_approval_service.get_detail(
+        db, approval_token, principal.user_id, client_ip(request)
+    )
+
+
+@router.get("/gerencia/documento", include_in_schema=False)
+async def get_manager_approval_document(
+    request: Request,
+    approval_token: str = Header(..., alias="X-FirmaDoc-Approval"),
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    path, filename = await manager_approval_service.get_document_path(
+        db, approval_token, principal.user_id, client_ip(request)
+    )
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=filename,
+        background=BackgroundTask(lambda: __import__("os").unlink(path) if __import__("os").path.exists(path) else None),
+    )
+
+
+@router.post("/gerencia/autorizar", response_model=SignatureResult)
+async def authorize_as_manager(
+    payload: ManagerApprovalToken,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    return await manager_approval_service.authorize(
+        db, payload.token, principal.user_id, client_ip(request)
+    )
+
+
+@router.post("/gerencia/rechazar", response_model=ManagerApprovalStatus)
+def reject_as_manager(
+    payload: ManagerApprovalReject,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+):
+    return manager_approval_service.reject(
+        db, payload.token, principal.user_id, payload.reason, client_ip(request)
+    )
 
 
 

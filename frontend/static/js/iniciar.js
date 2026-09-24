@@ -25,6 +25,12 @@ const activeProcessDescription = document.querySelector("#activeProcessDescripti
 const closeActiveProcessModalBtn = document.querySelector("#closeActiveProcessModal");
 const continueActiveProcessBtn = document.querySelector("#continueActiveProcess");
 const replaceActiveProcessBtn = document.querySelector("#replaceActiveProcess");
+const managerRequestModal = document.querySelector("#managerRequestModal");
+const managerApprovalLink = document.querySelector("#managerApprovalLink");
+const managerRequestStatus = document.querySelector("#managerRequestStatus");
+const closeManagerRequestModalBtn = document.querySelector("#closeManagerRequestModal");
+const closeManagerRequestActionBtn = document.querySelector("#closeManagerRequestAction");
+const copyManagerApprovalLinkBtn = document.querySelector("#copyManagerApprovalLink");
 
 let viewer = null;
 let currentPosition = null;
@@ -33,6 +39,8 @@ let searchController = null;
 let activeProcess = null;
 let pendingStartPayload = null;
 let cancellationConfirmPending = false;
+let managerStatusTimer = null;
+let managerRequestFirid = null;
 
 init().catch((error) => showUiError(alertBox, error, { onRetry: () => window.location.reload() }));
 
@@ -60,7 +68,7 @@ async function init() {
     }
   });
   
-  viewer.signer = "firmante";
+  viewer.setSigner(user);
 
   bindControls();
   await loadDocumentInfo();
@@ -86,6 +94,16 @@ function bindControls() {
         selectedUserDisplay.hidden = true;
         signerUserSearch.setAttribute("aria-expanded", "false");
       }
+      if (currentPosition) {
+        viewer.clearPositions();
+      }
+      if (e.target.value === "gerencia") {
+        viewer.setMode("INTERNA");
+        viewer.setSigner("gerencia");
+      } else {
+        viewer.setMode("MANUSCRITA");
+        viewer.setSigner(e.target.value === "otro" ? "" : userInput.value.trim());
+      }
       updateWorkflowSteps();
     });
   });
@@ -95,6 +113,7 @@ function bindControls() {
 
     // Cualquier edición manual invalida la selección anterior.
     signerUser.value = "";
+    viewer.setSigner("");
     selectedUserDisplay.textContent = "";
     selectedUserDisplay.hidden = true;
     updateWorkflowSteps();
@@ -119,6 +138,9 @@ function bindControls() {
   closeActiveProcessModalBtn.addEventListener("click", closeActiveProcessModal);
   continueActiveProcessBtn.addEventListener("click", continueActiveProcess);
   replaceActiveProcessBtn.addEventListener("click", replaceActiveProcess);
+  closeManagerRequestModalBtn.addEventListener("click", closeManagerRequestModal);
+  closeManagerRequestActionBtn.addEventListener("click", closeManagerRequestModal);
+  copyManagerApprovalLinkBtn.addEventListener("click", copyManagerApprovalLink);
 }
 
 async function performUserSearch(query) {
@@ -145,6 +167,7 @@ async function performUserSearch(query) {
       a.addEventListener("click", (e) => {
         e.preventDefault();
         signerUser.value = user.userName;
+        viewer.setSigner(user.userName);
         signerUserSearch.value = "";
         userSearchResults.innerHTML = "";
         selectedUserDisplay.textContent = `Usuario seleccionado: ${user.displayName} (${user.userName})`;
@@ -197,7 +220,20 @@ async function loadDocumentInfo() {
 async function confirmPreparation() {
   if (!currentPosition) return;
 
-  const isOther = document.querySelector('input[name="signerType"]:checked').value === "otro";
+  const signerType = document.querySelector('input[name="signerType"]:checked').value;
+  if (signerType === "gerencia") {
+    await startManagerApproval({
+      node_id: nodeId,
+      page: currentPosition.pagina,
+      posx: currentPosition.posx,
+      posy: currentPosition.posy,
+      width: currentPosition.ancho,
+      height: currentPosition.alto
+    });
+    return;
+  }
+
+  const isOther = signerType === "otro";
   let targetUser = "yo";
   if (isOther) {
     targetUser = signerUser.value.trim();
@@ -219,6 +255,72 @@ async function confirmPreparation() {
   };
 
   await startSignature(payload);
+}
+
+async function startManagerApproval(payload) {
+  try {
+    clearFeedback(alertBox);
+    setBusy(confirmPositionBtn, true, "Creando solicitud...");
+    const response = await apiFetch("/api/firma/gerencia/solicitudes", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    managerRequestFirid = response.firid;
+    managerApprovalLink.value = new URL(response.approval_url, window.location.origin).href;
+    managerRequestStatus.textContent = "Pendiente de autorizaci?n por Gerencia.";
+    managerRequestModal.hidden = false;
+    copyManagerApprovalLinkBtn.focus();
+    startManagerStatusPolling();
+  } catch (error) {
+    if (error.status === 409 && error.code === "ACTIVE_PROCESS") {
+      activeProcess = error.detail;
+      pendingStartPayload = null;
+      activeProcessStatus.textContent = activeProcess.status || "ACTIVO";
+      resetActiveProcessDialog();
+      activeProcessModal.hidden = false;
+      continueActiveProcessBtn.focus();
+      return;
+    }
+    showUiError(alertBox, error, { onRetry: () => startManagerApproval(payload) });
+  } finally {
+    setBusy(confirmPositionBtn, false);
+  }
+}
+
+function startManagerStatusPolling() {
+  clearInterval(managerStatusTimer);
+  managerStatusTimer = window.setInterval(checkManagerStatus, 2500);
+}
+
+async function checkManagerStatus() {
+  if (!managerRequestFirid) return;
+  try {
+    const status = await apiFetch(`/api/firma/gerencia/solicitudes/${managerRequestFirid}/estado`);
+    managerRequestStatus.textContent = status.message;
+    if (status.status === "AUTORIZADO") {
+      clearInterval(managerStatusTimer);
+      await redirectToSignature(managerRequestFirid, false);
+    } else if (["RECHAZADO", "CONFLICTO", "EXPIRADO"].includes(status.status)) {
+      clearInterval(managerStatusTimer);
+    }
+  } catch (error) {
+    managerRequestStatus.textContent = error.message || "No fue posible actualizar el estado.";
+  }
+}
+
+async function copyManagerApprovalLink() {
+  try {
+    await navigator.clipboard.writeText(managerApprovalLink.value);
+    copyManagerApprovalLinkBtn.textContent = "Enlace copiado";
+  } catch {
+    managerApprovalLink.select();
+    document.execCommand("copy");
+  }
+}
+
+function closeManagerRequestModal() {
+  managerRequestModal.hidden = true;
+  copyManagerApprovalLinkBtn.textContent = "Copiar enlace";
 }
 
 async function startSignature(payload) {

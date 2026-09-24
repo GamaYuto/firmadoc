@@ -371,7 +371,7 @@ body {
 .signer-choice,
 .field:has(input[name="signerType"]) {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   background: #EEF2F5;
@@ -388,6 +388,50 @@ body {
   justify-content: center;
   margin: 0;
   min-height: 38px;
+  padding: 6px;
+  text-align: center;
+}
+
+.manager-approval-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  min-height: calc(100vh - 72px);
+}
+
+.manager-approval-panel {
+  border-left: 1px solid var(--fd-border);
+  padding: 24px;
+}
+
+.manager-approval-panel dl {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px 12px;
+}
+
+.manager-approval-panel dt {
+  color: var(--fd-muted);
+}
+
+.manager-approval-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+@media (max-width: 900px) {
+  .field:has(input[name="signerType"]) {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-approval-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-approval-panel {
+    border-left: 0;
+    border-top: 1px solid var(--fd-border);
+  }
 }
 
 .field:has(input[name="signerType"]) label:has(input:checked) {

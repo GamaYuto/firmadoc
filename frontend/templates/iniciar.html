@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FirmaDoc | Iniciar Firma</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css?v=12.1">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=13.0">
   </head>
   <body>
     <header class="app-header">
@@ -62,6 +62,9 @@
             <label>
               <input type="radio" name="signerType" value="otro"> Otro usuario
             </label>
+            <label>
+              <input type="radio" name="signerType" value="gerencia"> Autorizado por gerencia
+            </label>
           </div>
           <div class="field" id="otherUserField" hidden>
             <label for="signerUser">Firmante:</label>
@@ -104,7 +107,28 @@
       </div>
     </div>
 
+    <div id="managerRequestModal" class="modal-backdrop-custom" role="dialog" aria-modal="true" aria-labelledby="managerRequestTitle" hidden>
+      <div class="modal-dialog-custom">
+        <div class="modal-header-custom">
+          <h3 id="managerRequestTitle">Autorizaci?n de Gerencia</h3>
+          <button id="closeManagerRequestModal" class="btn-close-custom" type="button" aria-label="Cerrar">&times;</button>
+        </div>
+        <div class="modal-body-custom">
+          <p id="managerRequestMessage">Solicitud creada. Comparta este enlace ?nicamente con el gerente autorizado.</p>
+          <div class="field">
+            <label for="managerApprovalLink">Enlace de autorizaci?n</label>
+            <input id="managerApprovalLink" type="text" readonly>
+          </div>
+          <p id="managerRequestStatus" class="status-note" role="status">Pendiente de autorizaci?n por Gerencia.</p>
+        </div>
+        <div class="modal-footer-custom">
+          <button id="copyManagerApprovalLink" class="btn btn-secondary" type="button">Copiar enlace</button>
+          <button id="closeManagerRequestAction" class="btn btn-primary" type="button">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
-    <script type="module" src="/static/js/iniciar.js?v=12.1"></script>
+    <script type="module" src="/static/js/iniciar.js?v=13.0"></script>
   </body>
 </html>

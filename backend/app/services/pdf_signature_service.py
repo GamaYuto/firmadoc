@@ -54,6 +54,7 @@ class _SignatureSnapshot:
     usrcre: str
     participant_nomcom: str
     participant_rolpro: str
+    step_type: str
     positions: tuple[Firpos, ...]
 
 
@@ -142,12 +143,25 @@ class PdfSignatureService:
         opeid: UUID,
         source_hash: str,
         font_size: int,
+        step_type: str = "FIRMAR",
     ) -> str:
         server_time = self._format_server_time()
         nomcom = html.escape(participant_nomcom.strip())
         rolpro = html.escape(participant_rolpro.strip())
         opeid_text = html.escape(str(opeid))
         hash_prefix = html.escape(source_hash[:16])
+        if step_type == "APROBAR":
+            return (
+                "<div style='margin:0;padding:0;"
+                f"font-family:Helvetica;font-size:{font_size}pt;line-height:1.1;color:#000000;text-align:left;'>"
+                "<div style='font-weight:bold;'>AUTORIZADO ELECTR&#211;NICAMENTE POR GERENCIA</div>"
+                f"<div>{nomcom}</div>"
+                f"<div>{rolpro}</div>"
+                f"<div>Fecha: {html.escape(server_time)}</div>"
+                f"<div>Operaci&#243;n: {opeid_text}</div>"
+                f"<div>Origen SHA-256: {hash_prefix}</div>"
+                "</div>"
+            )
         return (
             "<div style='margin:0;padding:0;"
             f"font-family:Helvetica;font-size:{font_size}pt;line-height:1.1;color:#000000;text-align:left;'>"
@@ -185,6 +199,7 @@ class PdfSignatureService:
         opeid: UUID,
         source_hash: str,
         rotaci: int,
+        step_type: str = "FIRMAR",
     ) -> None:
         padding = 4
         inner = fitz.Rect(
@@ -205,6 +220,7 @@ class PdfSignatureService:
                 opeid,
                 source_hash,
                 font_size,
+                step_type,
             )
             for candidate_rotation in candidate_rotations:
                 if not self._internal_html_fits(inner, html_body, candidate_rotation):
@@ -278,6 +294,9 @@ class PdfSignatureService:
                 raise SignatureNotFoundError("Participante no encontrado")
             if not participant.nomcom or not participant.rolpro:
                 raise SignaturePayloadError("La firma requiere nombre y rol institucional")
+            step = participant.docpaso
+            if not step:
+                raise SignatureNotFoundError("Paso no encontrado")
 
             positions = tuple(crud_docfirma.get_positions_by_attempt(read_db, firid))
             if not positions:
@@ -294,6 +313,7 @@ class PdfSignatureService:
                 usrcre=firma.usrcre,
                 participant_nomcom=participant.nomcom,
                 participant_rolpro=participant.rolpro,
+                step_type=step.pastip,
                 positions=positions,
             )
         finally:
@@ -366,6 +386,7 @@ class PdfSignatureService:
                         snapshot.opeid,
                         snapshot.hasori,
                         effective_rotation,
+                        snapshot.step_type,
                     )
                 else:
                     raise SignaturePayloadError("Tipo de firma no soportado")

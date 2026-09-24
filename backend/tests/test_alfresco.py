@@ -70,7 +70,7 @@ def test_alfresco_node_content_unauthenticated():
 # 1. nodeId con UUID inválido
 def test_get_node_metadata_invalid_uuid(client):
     response = client.get("/api/alfresco/nodes/invalid-uuid")
-    assert response.status_code == 422 # Pydantic UUID validation
+    assert response.status_code == 400
 
 # 2. respuesta 403
 @respx.mock

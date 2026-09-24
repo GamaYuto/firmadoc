@@ -80,3 +80,8 @@ async def pending_page():
 @app.get("/firma-movil/{token}", include_in_schema=False)
 async def mobile_signature_page(token: str):
     return _frontend_file("firma_movil.html")
+
+
+@app.get("/autorizar-gerencia", include_in_schema=False)
+async def manager_approval_page():
+    return _frontend_file("autorizar_gerencia.html")

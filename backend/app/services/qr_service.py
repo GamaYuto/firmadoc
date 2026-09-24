@@ -89,6 +89,7 @@ class QrService:
         sesion = db.get(SesionQr, sesid)
         if not sesion:
             return "NO_ENCONTRADA"
+        self._assert_handwritten_flow(db, sesion.firma)
 
         if sesion.estado == EstadoSesionQr.PENDIENTE.value:
             now = datetime.now(timezone.utc)
