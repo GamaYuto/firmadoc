@@ -743,10 +743,6 @@ class AlfrescoService:
         artifact_service: TemporaryArtifactService | None = None,
         clock: Callable[[], datetime] | None = None,
         write_enabled: bool | None = None,
-        test_node_id: str | None = None,
-        test_expected_name: str | None = None,
-        test_expected_path: str | None = None,
-        test_expected_mimetype: str | None = None,
         major_version: bool | None = None,
         reconcile_min_checks: int | None = None,
         reconcile_wait_seconds: int | None = None,
@@ -756,10 +752,6 @@ class AlfrescoService:
         self.artifact_service = artifact_service or temporary_artifact_service
         self.clock = clock or (lambda: datetime.now(_BOGOTA_TZ))
         self.write_enabled = settings.FIRMADOC_ALFRESCO_WRITE_ENABLED if write_enabled is None else write_enabled
-        self.test_node_id = test_node_id if test_node_id is not None else settings.FIRMADOC_ALFRESCO_TEST_NODE_ID
-        self.test_expected_name = test_expected_name if test_expected_name is not None else settings.FIRMADOC_ALFRESCO_TEST_EXPECTED_NAME
-        self.test_expected_path = test_expected_path if test_expected_path is not None else settings.FIRMADOC_ALFRESCO_TEST_EXPECTED_PATH
-        self.test_expected_mimetype = test_expected_mimetype if test_expected_mimetype is not None else settings.FIRMADOC_ALFRESCO_TEST_EXPECTED_MIMETYPE
         self.major_version = settings.FIRMADOC_ALFRESCO_MAJOR_VERSION if major_version is None else major_version
         self.reconcile_min_checks = settings.FIRMADOC_RECONCILE_MIN_CHECKS if reconcile_min_checks is None else reconcile_min_checks
         self.reconcile_wait_seconds = settings.FIRMADOC_RECONCILE_WAIT_SECONDS if reconcile_wait_seconds is None else reconcile_wait_seconds
@@ -859,20 +851,7 @@ class AlfrescoService:
                 status_code=409,
                 source_version=doc.verini,
             )
-        if not self.test_node_id:
-            raise SignaturePublicationError(
-                "No existe un nodo de prueba autorizado para publicar",
-                code="TEST_NODE_NOT_CONFIGURED",
-                status_code=409,
-                source_version=doc.verini,
-            )
-        if doc.nodid != self.test_node_id:
-            raise SignaturePublicationError(
-                "El nodo remoto no coincide con el nodo de prueba autorizado",
-                code="TEST_NODE_MISMATCH",
-                status_code=409,
-                source_version=doc.verini,
-            )
+
         if doc.mimtip != "application/pdf":
             raise SignaturePublicationError(
                 "El documento no es un PDF",
@@ -989,8 +968,7 @@ class AlfrescoService:
             doc = read_db.scalars(select(DocFir).where(DocFir.docid == firma.docid)).first()
             if not doc:
                 raise SignatureNotFoundError("Documento no encontrado")
-            if doc.nodid != self.test_node_id:
-                raise SignatureUploadError("El nodo remoto no coincide con el nodo de prueba autorizado")
+
             if doc.mimtip != "application/pdf":
                 raise SignaturePayloadError("El documento no es un PDF")
 
@@ -1032,12 +1010,9 @@ class AlfrescoService:
             raise SignatureUploadError("El nodo remoto no coincide con el documento autorizado")
         if not node.is_file:
             raise SignatureUploadError("El nodo remoto no es un archivo")
-        if node.mime_type and node.mime_type.lower() != self.test_expected_mimetype.lower():
+        expected_mime = (snapshot.mimtip or "application/pdf").lower()
+        if node.mime_type and node.mime_type.lower() != expected_mime:
             raise SignatureUploadError("El nodo remoto no tiene el MIME autorizado")
-        if self.test_expected_name and node.name != self.test_expected_name:
-            raise SignatureUploadError("El nombre remoto no coincide con el nodo de prueba autorizado")
-        if self.test_expected_path and node.path and node.path != self.test_expected_path:
-            raise SignatureUploadError("La ruta remota no coincide con el nodo de prueba autorizado")
 
     def _record_recovery_event(self, db: Session, snapshot: _PublicationSnapshot, detail: str) -> None:
         short_db = self._build_session_factory(db)()
@@ -1531,8 +1506,6 @@ class AlfrescoService:
         expected_revnum: int,
         expected_participant_verlock: int,
     ) -> AlfrescoUploadResult:
-        if not self.test_node_id:
-            raise SignatureUploadError("No existe un nodo de prueba autorizado para publicar")
 
         snapshot = self._load_publication_snapshot(db, firid, expected_revnum, expected_participant_verlock)
         current_pdf_path: Path | None = None
@@ -1655,8 +1628,7 @@ class AlfrescoService:
         finally:
             read_db.close()
 
-        if not self.test_node_id or snapshot.node_id != self.test_node_id:
-            raise SignatureUploadError("El nodo remoto no coincide con el nodo de prueba autorizado")
+
         if not snapshot.hasfin:
             raise SignaturePayloadError("No existe hash final para reconciliar")
 

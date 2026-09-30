@@ -166,19 +166,7 @@ async def explore_alfresco_folder(
     max_items: int = 100,
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    target_folder = folder_id
-    if not target_folder:
-        # Si no se especifica carpeta, intentar ubicar la carpeta de pruebas
-        if settings.FIRMADOC_ALFRESCO_TEST_NODE_ID:
-            try:
-                from uuid import UUID as PyUUID
-                test_meta = await client.get_node_metadata(PyUUID(settings.FIRMADOC_ALFRESCO_TEST_NODE_ID))
-                if test_meta and test_meta.parent_id:
-                    target_folder = test_meta.parent_id
-            except Exception:
-                target_folder = "-my-"
-        if not target_folder:
-            target_folder = "-my-"
+    target_folder = folder_id or "-my-"
 
     try:
         return await client.list_folder_children(target_folder, skip_count=skip_count, max_items=max_items)
