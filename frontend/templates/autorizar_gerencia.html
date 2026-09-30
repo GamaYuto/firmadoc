@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FirmaDoc | Autorizaci&oacute;n de Gerencia</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css?v=13.0">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=13.9">
   </head>
   <body>
     <header class="app-header">
@@ -20,6 +20,15 @@
     </header>
 
     <main class="manager-approval-layout">
+      <section class="manager-mobile-summary" aria-label="Resumen de autorizacion">
+        <span class="section-kicker">Autorizacion de Gerencia</span>
+        <h1>Autorizacion de Gerencia</h1>
+        <dl>
+          <dt>Documento</dt><dd data-mobile-document>Validando solicitud...</dd>
+          <dt>Solicitante</dt><dd data-mobile-requester></dd>
+        </dl>
+      </section>
+
       <section class="viewer-column" aria-label="Documento para autorizar">
         <div class="viewer-toolbar">
           <div id="pageStatus" role="status"></div>
@@ -73,6 +82,6 @@
       </div>
     </div>
 
-    <script type="module" src="/static/js/autorizar_gerencia.js?v=13.1"></script>
+    <script type="module" src="/static/js/autorizar_gerencia.js?v=13.9"></script>
   </body>
 </html>

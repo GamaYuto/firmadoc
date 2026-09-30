@@ -15,9 +15,15 @@ const authenticationForm = document.querySelector("#authenticationForm");
 const authenticationUser = document.querySelector("#authenticationUser");
 const authenticationError = document.querySelector("#authenticationError");
 const authenticationSubmit = document.querySelector("#authenticationSubmit");
+const zoomSelect = document.querySelector("#zoomSelect");
 let viewer = null;
 let pdfObjectUrl = null;
 let authRetryAction = null;
+let currentRequestDetail = null;
+
+function isMobileLayout() {
+  return window.matchMedia("(max-width: 768px)").matches;
+}
 
 function setUserHeader(userId) {
   const cleanUser = (userId || "").trim();
@@ -37,12 +43,15 @@ async function loadManagerRequest() {
     const detail = await apiFetch("/api/firma/gerencia/solicitud", {
       headers: { "X-FirmaDoc-Approval": rawToken }
     });
+    currentRequestDetail = detail;
 
     document.querySelector("#documentName").textContent = detail.document_name;
     document.querySelector("#requesterName").textContent = detail.requester_name;
     document.querySelector("#requestedAt").textContent = new Date(detail.requested_at).toLocaleString();
     document.querySelector("#managerName").textContent = detail.manager_name;
     document.querySelector("#managerRole").textContent = detail.manager_role;
+    document.querySelector("[data-mobile-document]").textContent = detail.document_name;
+    document.querySelector("[data-mobile-requester]").textContent = detail.requester_name;
 
     const pdfBlob = await apiFetchBinary("/api/firma/gerencia/documento", {
       headers: { "X-FirmaDoc-Approval": rawToken }
@@ -60,9 +69,12 @@ async function loadManagerRequest() {
       editable: false
     });
     await viewer.load(pdfObjectUrl, [], []);
-    document.querySelector("#zoomSelect").addEventListener("change", (event) => {
+    if (isMobileLayout()) {
+      await viewer.fitWidth({ maxZoom: 1, horizontalPadding: 24 });
+    }
+    zoomSelect.addEventListener("change", (event) => {
       viewer.setZoom(Number(event.target.value));
-    }, { once: true });
+    });
 
     authorizeButton.disabled = false;
     rejectButton.disabled = false;
@@ -101,6 +113,50 @@ async function loadManagerRequest() {
     }
 
     showUiError(alertBox, error, { onRetry: loadManagerRequest });
+  }
+}
+
+function hideApprovalActions() {
+  authorizeButton.hidden = true;
+  rejectButton.hidden = true;
+  document.querySelector(".manager-approval-actions")?.setAttribute("hidden", "");
+}
+
+async function loadSignedPreview(firid) {
+  const pdfBlob = await apiFetchBinary(`/api/firma/firmas/${firid}/resultado/pdf`);
+  if (pdfObjectUrl) {
+    URL.revokeObjectURL(pdfObjectUrl);
+  }
+  pdfObjectUrl = URL.createObjectURL(pdfBlob);
+  if (!viewer) {
+    viewer = new PdfViewer({
+      container: document.querySelector("#pdfContainer"),
+      thumbs: null,
+      status: document.querySelector("#pageStatus"),
+      editable: false
+    });
+  }
+  await viewer.load(pdfObjectUrl, [], []);
+  if (isMobileLayout()) {
+    await viewer.fitWidth({ maxZoom: 1, horizontalPadding: 24 });
+  }
+}
+
+async function showAuthorizedResult(result) {
+  hideApprovalActions();
+  alertBox.innerHTML = "";
+  const notice = document.createElement("div");
+  notice.className = "alert alert-success";
+  notice.setAttribute("role", "status");
+  notice.textContent = result?.message || "Documento autorizado por Gerencia.";
+  alertBox.appendChild(notice);
+  const firid = result?.firid || currentRequestDetail?.firid;
+  if (firid) {
+    try {
+      await loadSignedPreview(firid);
+    } catch (error) {
+      showUiError(alertBox, error, { onRetry: () => loadSignedPreview(firid) });
+    }
   }
 }
 
@@ -177,13 +233,17 @@ authorizeButton.addEventListener("click", async () => {
   try {
     setBusy(authorizeButton, true, "Autorizando...");
     rejectButton.disabled = true;
-    await apiFetch("/api/firma/gerencia/autorizar", {
+    const result = await apiFetch("/api/firma/gerencia/autorizar", {
       method: "POST",
       body: JSON.stringify({ token: rawToken })
     });
-    showCompleted("Documento autorizado por Gerencia.");
+    await showAuthorizedResult(result);
   } catch (error) {
     rejectButton.disabled = false;
+    if (error?.status === 409 && currentRequestDetail?.firid) {
+      await showAuthorizedResult({ firid: currentRequestDetail.firid, message: "La solicitud de Gerencia ya fue resuelta." });
+      return;
+    }
     showUiError(alertBox, error);
   } finally {
     setBusy(authorizeButton, false);
@@ -212,8 +272,7 @@ rejectButton.addEventListener("click", async () => {
 });
 
 function showCompleted(message) {
-  authorizeButton.disabled = true;
-  rejectButton.disabled = true;
+  hideApprovalActions();
   alertBox.innerHTML = "";
   const notice = document.createElement("div");
   notice.className = "alert alert-success";
@@ -225,3 +284,5 @@ function showCompleted(message) {
 window.addEventListener("beforeunload", () => {
   if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
 });
+
+

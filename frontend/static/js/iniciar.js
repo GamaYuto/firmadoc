@@ -1,4 +1,4 @@
-import { apiFetch, setSessionUser, showAlert, setBusy } from "./api.js?v=12.1";
+import { apiFetch, apiFetchBinary, escapeText, setSessionUser, showAlert, setBusy } from "./api.js?v=12.1";
 import { PdfViewer } from "./pdf-viewer.js";
 import { clearFeedback, showUiError } from "./ui-feedback.js?v=12.1";
 
@@ -38,9 +38,11 @@ let searchTimeout = null;
 let searchController = null;
 let activeProcess = null;
 let pendingStartPayload = null;
+let pendingStartFlow = null;
 let cancellationConfirmPending = false;
 let managerStatusTimer = null;
 let managerRequestFirid = null;
+let managerResultObjectUrl = null;
 
 init().catch((error) => showUiError(alertBox, error, { onRetry: () => window.location.reload() }));
 
@@ -267,14 +269,15 @@ async function startManagerApproval(payload) {
     });
     managerRequestFirid = response.firid;
     managerApprovalLink.value = new URL(response.approval_url, window.location.origin).href;
-    managerRequestStatus.textContent = "Pendiente de autorizaci?n por Gerencia.";
+    managerRequestStatus.textContent = "Pendiente de autorizacion por Gerencia.";
     managerRequestModal.hidden = false;
     copyManagerApprovalLinkBtn.focus();
     startManagerStatusPolling();
   } catch (error) {
     if (error.status === 409 && error.code === "ACTIVE_PROCESS") {
       activeProcess = error.detail;
-      pendingStartPayload = null;
+      pendingStartPayload = payload;
+      pendingStartFlow = "manager";
       activeProcessStatus.textContent = activeProcess.status || "ACTIVO";
       resetActiveProcessDialog();
       activeProcessModal.hidden = false;
@@ -299,12 +302,116 @@ async function checkManagerStatus() {
     managerRequestStatus.textContent = status.message;
     if (status.status === "AUTORIZADO") {
       clearInterval(managerStatusTimer);
-      await redirectToSignature(managerRequestFirid, false);
+      await loadAuthorizedManagerResult(managerRequestFirid);
     } else if (["RECHAZADO", "CONFLICTO", "EXPIRADO"].includes(status.status)) {
       clearInterval(managerStatusTimer);
     }
   } catch (error) {
     managerRequestStatus.textContent = error.message || "No fue posible actualizar el estado.";
+  }
+}
+
+function showPdfInlineError(message, retryAction) {
+  const container = document.querySelector("#pdfContainer");
+  container.innerHTML = "";
+  const notice = document.createElement("div");
+  notice.className = "pdf-inline-error";
+  notice.setAttribute("role", "alert");
+  notice.innerHTML = `
+    <strong>No se pudo cargar el PDF autorizado</strong>
+    <p>${escapeText(message)}</p>
+  `;
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "btn btn-primary";
+  retry.textContent = "Reintentar";
+  retry.addEventListener("click", retryAction);
+  notice.appendChild(retry);
+  container.appendChild(notice);
+  pageStatus.textContent = "Resultado pendiente de verificar";
+}
+
+async function publishAuthorizedResult(result) {
+  const button = document.querySelector("#publishAuthorizedPdf");
+  try {
+    setBusy(button, true, "Publicando...");
+    const publication = await apiFetch(`/api/firma/documentos/${result.docid}/publicar`, {
+      method: "POST",
+    });
+    showAlert(alertBox, "success", publication.message || "Documento publicado en Alfresco.");
+    await redirectToReturnUrlAfterPublication();
+  } catch (error) {
+    showUiError(alertBox, error, { onRetry: () => publishAuthorizedResult(result) });
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+async function redirectToReturnUrlAfterPublication() {
+  if (!returnUrl) return false;
+  try {
+    const validation = await apiFetch("/api/firma/validate-return-url?url=" + encodeURIComponent(returnUrl));
+    if (!validation.url) {
+      showAlert(alertBox, "warning", "Documento publicado, pero la URL de regreso a Alfresco no esta autorizada.");
+      return false;
+    }
+    pageStatus.textContent = "Publicado. Regresando a Alfresco";
+    showAlert(alertBox, "success", "Documento publicado. Regresando a Alfresco...");
+    window.location.href = validation.url;
+    return true;
+  } catch (error) {
+    console.warn("No fue posible validar returnUrl despues de publicar:", error);
+    showAlert(alertBox, "warning", "Documento publicado, pero no fue posible regresar automaticamente a Alfresco.");
+    return false;
+  }
+}
+function renderAuthorizedResultPanel(result) {
+  document.querySelector(".task-heading .section-kicker").textContent = "Autorizado por Gerencia";
+  document.querySelector(".task-heading h1").textContent = "Listo para publicar";
+  document.querySelector(".workflow-steps")?.setAttribute("hidden", "");
+  document.querySelector(".task-panel section")?.setAttribute("hidden", "");
+  document.querySelector(".panel-actions")?.setAttribute("hidden", "");
+  const publicationDisabled = result.can_publish_alfresco && !result.alfresco_write_enabled;
+  const publishButton = result.can_publish_alfresco
+    ? `<button id="publishAuthorizedPdf" class="btn btn-primary" type="button" ${publicationDisabled ? "disabled" : ""}>Publicar en Alfresco</button>`
+    : "";
+  const disabledNotice = publicationDisabled
+    ? `<p class="result-message publication-disabled">Publicacion deshabilitada en este entorno.</p>`
+    : "";
+  document.querySelector("#positionInfo").innerHTML = `
+    <p>${escapeText(result.message || "Documento autorizado por Gerencia.")}</p>
+    ${disabledNotice}
+    <dl>
+      <dt>Estado</dt><dd>${escapeText(result.document_status || result.status)}</dd>
+      <dt>Hash final</dt><dd>${escapeText(result.final_hash_short || "No disponible")}</dd>
+    </dl>
+    <div class="button-row result-actions">
+      ${publishButton}
+    </div>
+  `;
+  document.querySelector("#publishAuthorizedPdf")?.addEventListener("click", () => publishAuthorizedResult(result));
+}
+
+async function loadAuthorizedManagerResult(firid) {
+  const retry = () => loadAuthorizedManagerResult(firid);
+  try {
+    clearFeedback(alertBox);
+    managerRequestStatus.textContent = "Autorizado por Gerencia. Cargando PDF firmado...";
+    pageStatus.textContent = "Cargando PDF firmado";
+    const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`);
+    const blob = await apiFetchBinary(`/api/firma/firmas/${firid}/resultado/pdf`);
+    if (managerResultObjectUrl) URL.revokeObjectURL(managerResultObjectUrl);
+    managerResultObjectUrl = URL.createObjectURL(blob);
+    await viewer.load(managerResultObjectUrl, [], []);
+    managerRequestModal.hidden = true;
+    pageStatus.textContent = "PDF firmado cargado";
+    renderAuthorizedResultPanel(result);
+    confirmPositionBtn.disabled = true;
+    showAlert(alertBox, "success", "PDF autorizado cargado. Listo para publicar.");
+  } catch (error) {
+    managerRequestStatus.textContent = "Autorizado por Gerencia, pero el PDF firmado no pudo cargarse.";
+    showPdfInlineError(error.message || "No fue posible cargar el resultado firmado.", retry);
+    showUiError(alertBox, error, { onRetry: retry });
   }
 }
 
@@ -336,6 +443,7 @@ async function startSignature(payload) {
     if (error.status === 409 && error.code === "ACTIVE_PROCESS") {
       activeProcess = error.detail;
       pendingStartPayload = payload;
+      pendingStartFlow = "signature";
       activeProcessStatus.textContent = activeProcess.status || "ACTIVO";
       resetActiveProcessDialog();
       activeProcessModal.hidden = false;
@@ -404,11 +512,17 @@ async function replaceActiveProcess() {
         motivo: "Cancelado para iniciar un nuevo proceso sobre el mismo documento"
       })
     });
-    closeActiveProcessModal();
     const payload = pendingStartPayload;
+    const flow = pendingStartFlow;
+    closeActiveProcessModal();
     activeProcess = null;
     pendingStartPayload = null;
-    await startSignature(payload);
+    pendingStartFlow = null;
+    if (flow === "manager") {
+      await startManagerApproval(payload);
+    } else {
+      await startSignature(payload);
+    }
   } catch (error) {
     closeActiveProcessModal();
     showUiError(alertBox, error, { onRetry: loadDocumentInfo });
@@ -420,6 +534,10 @@ async function replaceActiveProcess() {
 
 function resetActiveProcessDialog() {
   cancellationConfirmPending = false;
+  if (activeProcessModal.hidden && !activeProcess) {
+    pendingStartPayload = null;
+    pendingStartFlow = null;
+  }
   activeProcessDescription.textContent = "Este documento ya tiene un proceso activo. Puede retomarlo sin perder el trabajo realizado.";
   continueActiveProcessBtn.textContent = "Continuar proceso anterior";
   replaceActiveProcessBtn.textContent = "Cancelar anterior y continuar";
@@ -427,4 +545,8 @@ function resetActiveProcessDialog() {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !activeProcessModal.hidden) closeActiveProcessModal();
+});
+
+window.addEventListener("beforeunload", () => {
+  if (managerResultObjectUrl) URL.revokeObjectURL(managerResultObjectUrl);
 });

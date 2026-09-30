@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 import { ApiError, setBusy } from "../static/js/api.js";
@@ -177,4 +179,82 @@ test("token de Gerencia se consume y desaparece inmediatamente de la URL", () =>
   );
   assert.equal(token, "token-secreto-de-gerencia");
   assert.deepEqual(calls, [[null, "", "/autorizar-gerencia"]]);
+});
+
+
+test("Gerencia mobile layout evita overflow y mantiene controles tactiles", () => {
+  const css = fs.readFileSync(path.join("static", "css", "firmadoc.css"), "utf8");
+  assert.match(css, /@media \(max-width: 768px\)/);
+  assert.match(css, /\.manager-approval-layout\s*\{[\s\S]*?flex-direction: column;/);
+  assert.match(css, /overflow-x: hidden;/);
+  assert.match(css, /\.manager-approval-actions \.btn\s*\{[\s\S]*?min-height: 44px;[\s\S]*?width: 100%;/);
+  assert.match(css, /\.manager-approval-layout \.pdf-scroll\s*\{[\s\S]*?width: 100%;/);
+  assert.match(css, /\.modal-backdrop-custom\s*\{[\s\S]*?overflow-y: auto;/);
+});
+
+test("Gerencia usa zoom fit-width inicial en mobile", () => {
+  const viewerSource = fs.readFileSync(path.join("static", "js", "pdf-viewer.js"), "utf8");
+  const approvalSource = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
+  assert.match(viewerSource, /async fitWidth/);
+  assert.match(approvalSource, /max-width: 768px/);
+  assert.match(approvalSource, /viewer\.fitWidth\(\{ maxZoom: 1, horizontalPadding: 24 \}\)/);
+});
+
+test("resultado autorizado se carga inline sin window.open", () => {
+  const firmaSource = fs.readFileSync(path.join("static", "js", "firma.js"), "utf8");
+  const iniciarSource = fs.readFileSync(path.join("static", "js", "iniciar.js"), "utf8");
+  assert.doesNotMatch(firmaSource, /window\.open\s*\(/);
+  assert.match(firmaSource, /apiFetchBinary\(url/);
+  assert.match(firmaSource, /viewer\.load\(loadUrl, \[\], \[\]\)/);
+  assert.match(firmaSource, /retryResultPreview/);
+  assert.match(iniciarSource, /loadAuthorizedManagerResult/);
+  assert.match(iniciarSource, /apiFetchBinary\(`\/api\/firma\/firmas\/\$\{firid\}\/resultado\/pdf`\)/);
+  assert.match(iniciarSource, /viewer\.load\(managerResultObjectUrl, \[\], \[\]\)/);
+});
+
+
+test("conflicto activo de Gerencia conserva payload para cancelar y recrear", () => {
+  const iniciarSource = fs.readFileSync(path.join("static", "js", "iniciar.js"), "utf8");
+  assert.match(iniciarSource, /async function startManagerApproval\(payload\)[\s\S]*?pendingStartPayload = payload;[\s\S]*?pendingStartFlow = "manager";/);
+  assert.match(iniciarSource, /async function startSignature\(payload\)[\s\S]*?pendingStartPayload = payload;[\s\S]*?pendingStartFlow = "signature";/);
+  assert.match(iniciarSource, /if \(flow === "manager"\) \{[\s\S]*?await startManagerApproval\(payload\);/);
+});
+
+
+test("Gerencia autorizada oculta acciones y carga PDF firmado", () => {
+  const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
+  assert.match(source, /function hideApprovalActions\(\)[\s\S]*?authorizeButton\.hidden = true;[\s\S]*?rejectButton\.hidden = true;/);
+  assert.match(source, /apiFetchBinary\(`\/api\/firma\/firmas\/\$\{firid\}\/resultado\/pdf`\)/);
+  assert.match(source, /await showAuthorizedResult\(result\);/);
+});
+
+test("vista solicitante autorizada cambia a resultado publicable", () => {
+  const source = fs.readFileSync(path.join("static", "js", "iniciar.js"), "utf8");
+  assert.match(source, /function renderAuthorizedResultPanel\(result\)/);
+  assert.match(source, /\.task-panel section"\)\?\.setAttribute\("hidden", ""\)/);
+  assert.match(source, /\.panel-actions"\)\?\.setAttribute\("hidden", ""\)/);
+  assert.match(source, /id="publishAuthorizedPdf"/);
+  assert.match(source, /apiFetch\(`\/api\/firma\/documentos\/\$\{result\.docid\}\/publicar`/);
+});
+
+test("publicacion redirige a Alfresco con returnUrl validado sin popup", () => {
+  const iniciarSource = fs.readFileSync(path.join("static", "js", "iniciar.js"), "utf8");
+  const firmaSource = fs.readFileSync(path.join("static", "js", "firma.js"), "utf8");
+  assert.match(iniciarSource, /redirectToReturnUrlAfterPublication/);
+  assert.match(firmaSource, /redirectToReturnUrlAfterPublication/);
+  assert.match(iniciarSource, /validate-return-url\?url=/);
+  assert.match(firmaSource, /validate-return-url\?url=/);
+  assert.match(iniciarSource, /window\.location\.href = validation\.url/);
+  assert.match(firmaSource, /window\.location\.href = validation\.url/);
+  assert.doesNotMatch(iniciarSource, /window\.open\s*\(/);
+  assert.doesNotMatch(firmaSource, /window\.open\s*\(/);
+});
+
+test("Gerencia mantiene scroll interno del documento y zoom visible", () => {
+  const css = fs.readFileSync(path.join("static", "css", "firmadoc.css"), "utf8");
+  assert.match(css, /Manager approval: bounded document viewport/);
+  assert.match(css, /\.manager-approval-layout\s*\{[\s\S]*?height: calc\(100vh - 64px\);[\s\S]*?overflow: hidden;/);
+  assert.match(css, /\.manager-approval-layout \.viewer-column\s*\{[\s\S]*?overflow: hidden;/);
+  assert.match(css, /\.manager-approval-layout \.pdf-scroll\s*\{[\s\S]*?overflow: auto;[\s\S]*?overscroll-behavior: contain;/);
+  assert.match(css, /\.manager-approval-layout \.viewer-toolbar label\s*\{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: auto minmax\(96px, 1fr\);/);
 });

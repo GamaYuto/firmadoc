@@ -3,7 +3,6 @@ const PUBLICATION_CONFLICT_CODES = new Set([
   "REMOTE_VERSION_CONFLICT",
   "REMOTE_HASH_CONFLICT",
   "REMOTE_PRECONDITION_MISSING",
-  "TEST_NODE_MISMATCH",
 ]);
 
 export function describeUiError(error, context = "general") {

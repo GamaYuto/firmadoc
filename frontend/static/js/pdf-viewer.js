@@ -118,6 +118,16 @@ export class PdfViewer {
     }
   }
 
+  async fitWidth({ maxZoom = 1, horizontalPadding = 0 } = {}) {
+    if (!this.pdfDoc) return;
+    const firstPage = await this.pdfDoc.getPage(1);
+    const viewport = firstPage.getViewport({ scale: 1 });
+    const availableWidth = Math.max(120, this.container.clientWidth - horizontalPadding);
+    const nextZoom = Math.min(maxZoom, Math.max(0.25, availableWidth / viewport.width));
+    this.zoom = Number(nextZoom.toFixed(3));
+    await this.render();
+  }
+
   getPositions() {
     return this.positions.map((position) => ({
       pagina: position.pagina,
@@ -425,3 +435,4 @@ export class PdfViewer {
     this.onDirtyChange(next);
   }
 }
+

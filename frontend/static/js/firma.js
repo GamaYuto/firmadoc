@@ -50,6 +50,7 @@ let resizeHandler = null;
 let resultPdfUrl = null;
 let localResultPdfUrl = null;
 let sourcePdfUrl = null;
+let resultObjectUrl = null;
 let preparation = null;
 
 let qrPollingInterval = null;
@@ -133,7 +134,7 @@ async function loadSignature() {
 
     if (isLocalResultReady(detail.document_status)) {
       const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
-      renderResult(result);
+      await renderResult(result);
     } else {
       resultPanel.hidden = true;
       showAlert(alertBox, "info", "El documento está pendiente de autorización por Gerencia.");
@@ -146,7 +147,7 @@ async function loadSignature() {
     setClosedSignatureMode();
     if (isLocalResultReady(detail.document_status)) {
       const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
-      renderResult(result);
+      await renderResult(result);
     } else {
       resultPanel.hidden = true;
       showAlert(alertBox, "info", "El intento ya fue procesado. El resultado local solo esta disponible cuando la firma final queda pendiente de publicacion.");
@@ -292,29 +293,11 @@ async function confirmSignature() {
       });
     }
     cleanupSignature();
-    renderResult(result);
+    await renderResult(result);
   } catch (error) {
     showUiError(alertBox, error, { onRetry: loadSignature });
   } finally {
     setBusy(confirmButton, false);
-  }
-}
-
-async function openGeneratedResult() {
-  if (!resultPdfUrl) return;
-  try {
-    setBusy(document.querySelector("#viewGeneratedResult"), true, "Abriendo");
-    const blob = await apiFetchBinary(resultPdfUrl, { user: getCurrentUser("firmante") });
-    const blobUrl = URL.createObjectURL(blob);
-    const child = window.open(blobUrl, "_blank", "noopener");
-    if (!child) {
-      showAlert(alertBox, "info", "El navegador bloqueo la nueva pestaña del resultado.");
-    }
-    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
-  } catch (error) {
-    showUiError(alertBox, error, { onRetry: openGeneratedResult });
-  } finally {
-    setBusy(document.querySelector("#viewGeneratedResult"), false);
   }
 }
 
@@ -327,8 +310,9 @@ async function publishToAlfresco(event) {
       user: getCurrentUser("firmante"),
     });
     showAlert(alertBox, "success", publication.message);
+    if (await redirectToReturnUrlAfterPublication()) return;
     const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
-    renderResult(result);
+    await renderResult(result);
   } catch (error) {
     showUiError(alertBox, error, { context: "publication", onRetry: loadSignature });
   } finally {
@@ -336,38 +320,113 @@ async function publishToAlfresco(event) {
   }
 }
 
-function renderResult(result) {
+async function redirectToReturnUrlAfterPublication() {
+  const rawReturnUrl = params.get("returnUrl");
+  if (!rawReturnUrl) return false;
+  try {
+    const validation = await apiFetch("/api/firma/validate-return-url?url=" + encodeURIComponent(rawReturnUrl));
+    if (!validation.url) {
+      showAlert(alertBox, "warning", "Documento publicado, pero la URL de regreso a Alfresco no esta autorizada.");
+      return false;
+    }
+    pageStatus.textContent = "Publicado. Regresando a Alfresco";
+    showAlert(alertBox, "success", "Documento publicado. Regresando a Alfresco...");
+    window.location.href = validation.url;
+    return true;
+  } catch (error) {
+    console.warn("No fue posible validar returnUrl despues de publicar:", error);
+    showAlert(alertBox, "warning", "Documento publicado, pero no fue posible regresar automaticamente a Alfresco.");
+    return false;
+  }
+}
+function renderPdfLoadError(error, retryAction) {
+  const message = error?.message || "No fue posible cargar el PDF firmado.";
+  const container = document.querySelector("#pdfContainer");
+  container.innerHTML = "";
+  const notice = document.createElement("div");
+  notice.className = "pdf-inline-error";
+  notice.setAttribute("role", "alert");
+  notice.innerHTML = `
+    <strong>No se pudo verificar la previsualizacion del resultado</strong>
+    <p>${escapeText(message)}</p>
+  `;
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "btn btn-primary";
+  retry.textContent = "Reintentar";
+  retry.addEventListener("click", retryAction);
+  notice.appendChild(retry);
+  container.appendChild(notice);
+  pageStatus.textContent = "Resultado pendiente de verificar";
+}
+
+async function loadResultPdfInline(url, pdfSource, retryAction) {
+  if (!url) return false;
+  try {
+    if (resultObjectUrl) {
+      URL.revokeObjectURL(resultObjectUrl);
+      resultObjectUrl = null;
+    }
+    const loadUrl = pdfSource === "LOCAL"
+      ? URL.createObjectURL(await apiFetchBinary(url, { user: getCurrentUser("firmante") }))
+      : url;
+    if (pdfSource === "LOCAL") {
+      resultObjectUrl = loadUrl;
+    }
+    await viewer.load(loadUrl, [], []);
+    pageStatus.textContent = "PDF firmado cargado";
+    return true;
+  } catch (error) {
+    renderPdfLoadError(error, retryAction);
+    showUiError(alertBox, error, { onRetry: retryAction });
+    return false;
+  }
+}
+
+async function renderResult(result) {
   setClosedSignatureMode();
   if (detail) {
     detail.document_status = result.document_status || result.status;
     detail.estado = result.status;
   }
   docStatus.textContent = getStatusLabel(result.document_status || result.status);
-  showAlert(alertBox, "success", result.message);
   resultPanel.hidden = false;
   const resultStatus = result.document_status || result.status;
   const pdfSource = getResultPdfSource(resultStatus);
   resultPdfUrl = pdfSource === "LOCAL" ? localResultPdfUrl : pdfSource === "ALFRESCO" ? sourcePdfUrl : null;
-  if (resultPdfUrl && preparation?.pages) {
-    viewer.load(resultPdfUrl, preparation.pages, []).catch((error) => {
-      showUiError(alertBox, error, { onRetry: loadSignature });
-    });
+  const retryResultLoad = async () => {
+    const refreshed = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+    await renderResult(refreshed);
+  };
+  const pdfLoaded = resultPdfUrl
+    ? await loadResultPdfInline(resultPdfUrl, pdfSource, retryResultLoad)
+    : false;
+  if (resultPdfUrl && !pdfLoaded) {
+    showAlert(alertBox, "warning", "El documento fue autorizado, pero el PDF firmado no pudo verificarse en el visor. Reintente antes de publicar.");
+  } else {
+    showAlert(alertBox, "success", result.message);
   }
   const publicationLabel = result.alfresco_publication === "PENDING" ? "Pendiente de publicacion en Alfresco" : result.alfresco_publication === "PUBLISHED" ? "Publicada" : "No iniciada";
-  const localStateLabel = result.document_status === "PENDIENTE_PUBLICACION"
-    ? "Documento firmado y listo para publicar"
-    : result.document_status === "COMPLETADO"
-      ? "Documento publicado y verificado"
-      : "Pendiente del siguiente firmante";
+  const localStateLabel = resultPdfUrl && !pdfLoaded
+    ? "Previsualizacion del PDF pendiente de verificar"
+    : result.document_status === "PENDIENTE_PUBLICACION"
+      ? "Documento firmado y listo para publicar"
+      : result.document_status === "COMPLETADO"
+        ? "Documento publicado y verificado"
+        : "Pendiente del siguiente firmante";
   const publicationControl = getPublicationControlState(result);
+  if (resultPdfUrl && !pdfLoaded) {
+    publicationControl.disabled = true;
+    publicationControl.disabledMessage = "Verifique la previsualizacion del PDF firmado antes de publicar.";
+  }
   const disabledNotice = publicationControl.disabledMessage
     ? `<p class="result-message publication-disabled">${escapeText(publicationControl.disabledMessage)}</p>`
     : "";
   const publishButton = publicationControl.visible
     ? `<button id="publishAlfresco" class="btn btn-primary" type="button" ${publicationControl.disabled ? "disabled" : ""}>Publicar en Alfresco</button>`
     : "";
-  const resultPdfButton = resultPdfUrl
-    ? `<button id="viewGeneratedResult" class="btn btn-info" type="button">${pdfSource === "ALFRESCO" ? "Ver documento publicado" : "Ver resultado generado"}</button>`
+  const resultPdfButton = resultPdfUrl && !pdfLoaded
+    ? `<button id="retryResultPreview" class="btn btn-info" type="button">Reintentar previsualizacion</button>`
     : "";
   resultPanel.innerHTML = `
     <h2>Resultado local</h2>
@@ -391,7 +450,7 @@ function renderResult(result) {
       ${params.get("returnUrl") ? `<a class="btn btn-success" href="${escapeText(params.get("returnUrl"))}">Volver a Alfresco</a>` : ""}
     </div>
   `;
-  document.querySelector("#viewGeneratedResult")?.addEventListener("click", openGeneratedResult);
+  document.querySelector("#retryResultPreview")?.addEventListener("click", retryResultLoad);
   document.querySelector("#publishAlfresco")?.addEventListener("click", publishToAlfresco);
 }
 
@@ -492,7 +551,7 @@ async function pollQrStatus() {
       showAlert(alertBox, "success", "Firma capturada y confirmada exitosamente desde el móvil.");
       cleanupSignature();
       const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
-      renderResult(result);
+      await renderResult(result);
     } else if (statusData.estado === "EXPIRADO" || statusData.estado === "CANCELADO") {
       closeQrModalView();
       showAlert(alertBox, "warning", "La sesión QR ha expirado o fue cancelada.");
@@ -510,4 +569,8 @@ async function pollQrStatus() {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && qrModal && !qrModal.hidden) closeQrModalView();
+});
+
+window.addEventListener("beforeunload", () => {
+  if (resultObjectUrl) URL.revokeObjectURL(resultObjectUrl);
 });
