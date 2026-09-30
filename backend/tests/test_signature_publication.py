@@ -206,8 +206,6 @@ def _seed_publication_context(db, tmp_path: Path) -> dict[str, object]:
 def _publication_service(
     temp_service: TemporaryArtifactService,
     node_id: str = "node-pdf-1",
-    test_expected_name: str | None = "source.pdf",
-    test_expected_path: str | None = None,
 ) -> AlfrescoService:
     client = AlfrescoLabClient(
         base_url=ROOT_URL,
@@ -226,10 +224,6 @@ def _publication_service(
         client=client,
         artifact_service=temp_service,
         write_enabled=True,
-        test_node_id=node_id,
-        test_expected_name=test_expected_name,
-        test_expected_path=test_expected_path,
-        test_expected_mimetype="application/pdf",
         major_version=False,
     )
 
@@ -1492,3 +1486,72 @@ def test_publication_cleanup_failure_does_not_change_success(db_session, tmp_pat
     assert firma.estado == EstadoDocFirma.COMPLETADA.value
     assert firma.verfin == "1.1"
     assert _event_count(db_session, context["firma"].firid, "PUBLICATION_COMPLETED") == 1
+
+
+@respx.mock
+def test_publish_document_ignores_legacy_lab_node_and_remote_name(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    _mark_context_pending_publication(db_session, context)
+    service = _publication_service(
+        context["temp_service"],
+        "legacy-lab-node-id",
+    )
+    node_id = context["node_id"]
+    generated_bytes = context["generated_artifact"].path.read_bytes()
+
+    respx.get(f"{API_URL}/nodes/{node_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": node_id,
+                    "name": "source-renamed-in-alfresco.pdf",
+                    "nodeType": "cm:content",
+                    "isFile": True,
+                    "content": {"mimeType": "application/pdf", "sizeInBytes": len(context["source_bytes"])},
+                    "properties": {"cm:versionLabel": "1.0"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(200, headers={"etag": '"etag-name"'}, content=context["source_bytes"])
+    )
+    put_route = respx.put(f"{API_URL}/nodes/{node_id}/content").mock(
+        return_value=httpx.Response(
+            200,
+            headers={"etag": '"etag-new"'},
+            json={
+                "entry": {
+                    "id": node_id,
+                    "properties": {"cm:versionLabel": "1.1"},
+                    "versionComment": context["comment"],
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "id": "1.1",
+                    "nodeId": node_id,
+                    "versionComment": context["comment"],
+                    "createdAt": "2026-08-03T12:00:00Z",
+                    "modifiedByUser": {"id": "lab_user"},
+                }
+            },
+        )
+    )
+    respx.get(f"{API_URL}/nodes/{node_id}/versions/1.1/content").mock(
+        return_value=httpx.Response(200, content=generated_bytes)
+    )
+
+    outcome = service.publish_document(db_session, context["doc"].docid, "admin", "127.0.0.1", "pytest")
+
+    assert outcome.status == "PUBLISHED"
+    assert outcome.final_version == "1.1"
+    assert put_route.call_count == 1
+    assert _event_count(db_session, context["firma"].firid, "PUBLICATION_REMOTE_CONFLICT") == 0

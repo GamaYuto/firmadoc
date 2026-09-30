@@ -77,12 +77,19 @@ def _seed_signature_context(
     *,
     page_rotation: int = 0,
     position_rotation: int = 0,
+    step_type: str = "FIRMAR",
+    participant_name: str = "Usuario Firmante",
+    participant_role: str = "Firmante",
+    position_width: int = 220,
+    position_height: int = 100,
 ):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     source_path = tmp_path / "source.pdf"
     source_bytes = _write_pdf(source_path, page_rotation=page_rotation)
     source_sha = hashlib.sha256(source_bytes).hexdigest()
+    unique_code = hashlib.sha1(str(tmp_path).encode("utf-8")).hexdigest()[:10]
 
-    plantill = Plantill(tplcod="TPL-PDF", tplnom="Plantilla PDF", tplver=1, numpag=1, usrcre="admin", estado="ACTIVA")
+    plantill = Plantill(tplcod=f"TPL-PDF-{unique_code}", tplnom="Plantilla PDF", tplver=1, numpag=1, usrcre="admin", estado="ACTIVA")
     db.add(plantill)
     db.flush()
 
@@ -102,18 +109,18 @@ def _seed_signature_context(
     db.add(camp)
     db.flush()
 
-    flujo = flow_service.create_flow(db, FlujoCreate(flucod="F_PDF", flunom="Flujo PDF", usrcre="admin"))
+    flujo = flow_service.create_flow(db, FlujoCreate(flucod=f"F_PDF_{unique_code}", flunom="Flujo PDF", usrcre="admin"))
     flow_service.add_step(
         db,
         flujo.fluid,
-        PasoCreate(pascod="P1", pasnom="Paso 1", pastip="FIRMAR", orden=1, rolreq="Firmante", plazo=60),
+        PasoCreate(pascod="P1", pasnom="Paso 1", pastip="FIRMAR", orden=1, rolreq=participant_role, plazo=60),
         "admin",
     )
     flow_service.activate_flow(db, flujo.fluid, "admin")
 
     doc = create_documento(
         db=db,
-        nodid="node-pdf-1",
+        nodid=f"node-pdf-{unique_code}",
         docnom="source.pdf",
         tamano=len(source_bytes),
         verini="1.0",
@@ -129,9 +136,9 @@ def _seed_signature_context(
     part = DocPart(
         dpasid=pasos[0].dpasid,
         usrid="firmante",
-        nomcom="Usuario Firmante",
+        nomcom=participant_name,
         correo="firmante@empresa.local",
-        rolpro="Firmante",
+        rolpro=participant_role,
         orden=1,
         obliga=True,
         estado="DISPONIBLE",
@@ -143,17 +150,17 @@ def _seed_signature_context(
 
     actor = IdentitySnapshot(
         usrid="firmante",
-        nomcom="Usuario Firmante",
+        nomcom=participant_name,
         correo="firmante@empresa.local",
-        rolpro="Firmante",
+        rolpro=participant_role,
     )
     positions = [
         {
             "pagina": 1,
             "posx": 72,
             "posy": 72,
-            "ancho": 220,
-            "alto": 100,
+            "ancho": position_width,
+            "alto": position_height,
             "orden": 1,
             "camid": camp.camid,
             "rotaci": position_rotation,
@@ -169,6 +176,9 @@ def _seed_signature_context(
         actor=actor,
         expected_participant_verlock=1,
     )
+    if step_type != "FIRMAR":
+        pasos[0].pastip = step_type
+        db.flush()
     db.commit()
 
     return {
@@ -299,6 +309,90 @@ def test_pdf_integration_generada_exitosa(db_session, tmp_path):
         artifact.cleanup()
         assert not artifact.path.exists()
         _assert_no_generated_output(tmp_path / "generated")
+
+def test_pdf_gerencia_visual_compacto_cabe_en_firpos_y_mantiene_evidencia(db_session, tmp_path):
+    context = _seed_signature_context(
+        db_session,
+        tmp_path,
+        TipoFirma.INTERNA.value,
+        step_type="APROBAR",
+        participant_name="Leonel Tarsicio Blanco Bahoque",
+        participant_role="Representante legal",
+        position_width=230,
+        position_height=86,
+    )
+    service = _generated_service(
+        tmp_path,
+        clock=datetime(2026, 9, 29, 21, 33, 0, tzinfo=_BOGOTA),
+    )
+    artifact = service.generate_signature_pdf_and_mark_generated(
+        db_session,
+        context["firid"],
+        context["source_path"],
+        usrmod=context["actor"].usrid,
+    )
+    db_session.commit()
+
+    try:
+        with fitz.open(artifact.path) as document:
+            text = document[0].get_text()
+        assert "LEONEL TARSICIO BLANCO BAHOQUE" in text
+        assert "Representante legal" in text
+        assert "Autorizado" in text
+        assert "29/09/2026 21:33 COT" in text
+        assert str(context["opeid"]).replace("-", "")[:12] in text
+        assert context["source_sha"][:12] in text
+        assert not list((tmp_path / "generated").glob("*.png"))
+        assert not list((tmp_path / "generated").glob("*.jpg"))
+        assert not list((tmp_path / "generated").glob("*.jpeg"))
+        assert not list((tmp_path / "generated").glob("*.svg"))
+    finally:
+        artifact.cleanup()
+
+
+def test_pdf_gerencia_visual_generada_por_documento(db_session, tmp_path):
+    context_a = _seed_signature_context(
+        db_session,
+        tmp_path / "a",
+        TipoFirma.INTERNA.value,
+        step_type="APROBAR",
+        participant_name="Leonel Tarsicio Blanco Bahoque",
+        participant_role="Representante legal",
+    )
+    context_b = _seed_signature_context(
+        db_session,
+        tmp_path / "b",
+        TipoFirma.INTERNA.value,
+        step_type="APROBAR",
+        participant_name="Leonel Tarsicio Blanco Bahoque",
+        participant_role="Representante legal",
+    )
+    service = _generated_service(tmp_path, clock=datetime(2026, 9, 29, 21, 33, 0, tzinfo=_BOGOTA))
+    artifact_a = service.generate_signature_pdf_and_mark_generated(
+        db_session,
+        context_a["firid"],
+        context_a["source_path"],
+        usrmod=context_a["actor"].usrid,
+    )
+    artifact_b = service.generate_signature_pdf_and_mark_generated(
+        db_session,
+        context_b["firid"],
+        context_b["source_path"],
+        usrmod=context_b["actor"].usrid,
+    )
+    db_session.commit()
+
+    try:
+        assert artifact_a.sha256 != artifact_b.sha256
+        with fitz.open(artifact_a.path) as doc_a, fitz.open(artifact_b.path) as doc_b:
+            text_a = doc_a[0].get_text()
+            text_b = doc_b[0].get_text()
+        assert str(context_a["opeid"]).replace("-", "")[:12] in text_a
+        assert str(context_b["opeid"]).replace("-", "")[:12] in text_b
+        assert str(context_a["opeid"]).replace("-", "")[:12] not in text_b
+    finally:
+        artifact_a.cleanup()
+        artifact_b.cleanup()
 
 
 def test_pdf_integration_hash_incorrecto_no_cambia_estado(db_session, tmp_path):

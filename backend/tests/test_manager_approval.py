@@ -161,7 +161,7 @@ def test_manager_approval_authorizes_once_and_preserves_audit(
     assert artifact is not None
     with fitz.open(artifact) as document:
         text = document[0].get_text()
-    assert "AUTORIZADO ELECTR" in text
+    assert "Autorizado" in text
     assert "Gerente Laboratorio" in text
     assert "Gerente General" in text
 
@@ -371,3 +371,4 @@ def test_qr_and_manager_tokens_are_not_interchangeable(
         },
     )
     assert qr_in_manager.status_code == 404
+
