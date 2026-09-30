@@ -40,6 +40,7 @@ from app.services.temporary_artifact_service import TemporaryArtifactService, te
 _BOGOTA = ZoneInfo("America/Bogota")
 _ALLOWED_ROTATIONS = {0, 90, 180, 270}
 _FONT_SIZES = (9, 8, 7, 6)
+_MANAGER_FONT_PROFILES = ((15, 7), (13, 7), (11, 6), (9, 6))
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,11 +75,17 @@ class PdfSignatureService:
     def _default_clock(self) -> datetime:
         return datetime.now(_BOGOTA)
 
-    def _format_server_time(self) -> str:
+    def _server_time(self) -> datetime:
         current = self.clock()
         if current.tzinfo is None:
             current = current.replace(tzinfo=_BOGOTA)
-        return current.astimezone(_BOGOTA).strftime("%Y-%m-%d %H:%M:%S COT")
+        return current.astimezone(_BOGOTA)
+
+    def _format_server_time(self) -> str:
+        return self._server_time().strftime("%Y-%m-%d %H:%M:%S COT")
+
+    def _format_manager_time(self) -> str:
+        return self._server_time().strftime("%d/%m/%Y %H:%M COT")
 
     @staticmethod
     def _to_decimal(value: object, field_name: str) -> Decimal:
@@ -145,34 +152,91 @@ class PdfSignatureService:
         font_size: int,
         step_type: str = "FIRMAR",
     ) -> str:
+        if step_type == "APROBAR":
+            return self._build_manager_approval_html(
+                participant_nomcom,
+                participant_rolpro,
+                opeid,
+                source_hash,
+                signature_font_size=font_size + 6,
+                body_font_size=max(6, font_size),
+                detail_level="full",
+            )
         server_time = self._format_server_time()
         nomcom = html.escape(participant_nomcom.strip())
         rolpro = html.escape(participant_rolpro.strip())
         opeid_text = html.escape(str(opeid))
         hash_prefix = html.escape(source_hash[:16])
-        if step_type == "APROBAR":
-            return (
-                "<div style='margin:0;padding:0;"
-                f"font-family:Helvetica;font-size:{font_size}pt;line-height:1.1;color:#000000;text-align:left;'>"
-                "<div style='font-weight:bold;'>AUTORIZADO ELECTR&#211;NICAMENTE POR GERENCIA</div>"
-                f"<div>{nomcom}</div>"
-                f"<div>{rolpro}</div>"
-                f"<div>Fecha: {html.escape(server_time)}</div>"
-                f"<div>Operaci&#243;n: {opeid_text}</div>"
-                f"<div>Origen SHA-256: {hash_prefix}</div>"
-                "</div>"
-            )
         return (
             "<div style='margin:0;padding:0;"
             f"font-family:Helvetica;font-size:{font_size}pt;line-height:1.1;color:#000000;text-align:left;'>"
-            "<div style='font-weight:bold;'>FIRMADO ELECTRÓNICAMENTE</div>"
+            "<div style='font-weight:bold;'>FIRMADO ELECTR&#211;NICAMENTE</div>"
             f"<div>{nomcom}</div>"
             f"<div>{rolpro}</div>"
             f"<div>Fecha: {html.escape(server_time)}</div>"
-            f"<div>Operación: {opeid_text}</div>"
+            f"<div>Operaci&#243;n: {opeid_text}</div>"
             f"<div>Origen SHA-256: {hash_prefix}</div>"
             "</div>"
         )
+
+    def _build_manager_approval_html(
+        self,
+        participant_nomcom: str,
+        participant_rolpro: str,
+        opeid: UUID,
+        source_hash: str,
+        *,
+        signature_font_size: int,
+        body_font_size: int,
+        detail_level: str,
+    ) -> str:
+        clean_name = participant_nomcom.strip()
+        nomcom = html.escape(clean_name)
+        identity = html.escape(clean_name.upper())
+        role = html.escape((participant_rolpro or "Gerencia").strip())
+        timestamp = html.escape(self._format_manager_time())
+        operation_short = html.escape(str(opeid).replace("-", "")[:12])
+        hash_short = html.escape(source_hash[:12])
+        lines = [
+            f"<div style='font-family:Times-Roman,serif;font-style:italic;font-size:{signature_font_size}pt;line-height:1;color:#123B66;'>{nomcom}</div>",
+            f"<div style='font-family:Helvetica;font-size:{body_font_size}pt;line-height:1.05;font-weight:bold;color:#111111;'>{identity}</div>",
+        ]
+        if detail_level in {"full", "compact"}:
+            lines.append(f"<div style='font-family:Helvetica;font-size:{body_font_size}pt;line-height:1.05;color:#111111;'>{role}</div>")
+        lines.extend([
+            f"<div style='font-family:Helvetica;font-size:{body_font_size}pt;line-height:1.05;color:#111111;'>Autorizado electr&#243;nicamente</div>",
+            f"<div style='font-family:Helvetica;font-size:{body_font_size}pt;line-height:1.05;color:#111111;'>{timestamp}</div>",
+        ])
+        if detail_level == "full":
+            lines.append(f"<div style='font-family:Helvetica;font-size:{max(5, body_font_size - 1)}pt;line-height:1.05;color:#333333;'>ID: {operation_short} | SHA: {hash_short}</div>")
+        elif detail_level == "compact":
+            lines.append(f"<div style='font-family:Helvetica;font-size:{max(5, body_font_size - 1)}pt;line-height:1.05;color:#333333;'>ID: {operation_short}</div>")
+        else:
+            lines.append(f"<div style='font-family:Helvetica;font-size:{max(5, body_font_size - 1)}pt;line-height:1.05;color:#333333;'>ID: {operation_short}</div>")
+        return "<div style='margin:0;padding:0;text-align:left;'>" + "".join(lines) + "</div>"
+
+    def _manager_approval_html_candidates(
+        self,
+        participant_nomcom: str,
+        participant_rolpro: str,
+        opeid: UUID,
+        source_hash: str,
+    ) -> tuple[str, ...]:
+        candidates: list[str] = []
+        for detail_level in ("full", "compact", "minimal"):
+            for signature_size, body_size in _MANAGER_FONT_PROFILES:
+                candidates.append(
+                    self._build_manager_approval_html(
+                        participant_nomcom,
+                        participant_rolpro,
+                        opeid,
+                        source_hash,
+                        signature_font_size=signature_size,
+                        body_font_size=body_size,
+                        detail_level=detail_level,
+                    )
+                )
+        return tuple(candidates)
 
     @staticmethod
     def _internal_html_fits(inner: fitz.Rect, html_body: str, rotaci: int) -> bool:
@@ -211,17 +275,28 @@ class PdfSignatureService:
         if inner.width <= 0 or inner.height <= 0:
             raise SignaturePlacementError("El area de firma interna es demasiado pequena")
 
-        page.draw_rect(box, color=(0, 0, 0), fill=(1, 1, 1), width=0.6, overlay=True)
         candidate_rotations = (rotaci,) if rotaci in {0, 180} else (rotaci, 0)
-        for font_size in _FONT_SIZES:
-            html_body = self._build_internal_html(
+        if step_type == "APROBAR":
+            html_candidates = self._manager_approval_html_candidates(
                 participant_nomcom,
                 participant_rolpro,
                 opeid,
                 source_hash,
-                font_size,
-                step_type,
             )
+        else:
+            page.draw_rect(box, color=(0, 0, 0), fill=(1, 1, 1), width=0.6, overlay=True)
+            html_candidates = tuple(
+                self._build_internal_html(
+                    participant_nomcom,
+                    participant_rolpro,
+                    opeid,
+                    source_hash,
+                    font_size,
+                    step_type,
+                )
+                for font_size in _FONT_SIZES
+            )
+        for html_body in html_candidates:
             for candidate_rotation in candidate_rotations:
                 if not self._internal_html_fits(inner, html_body, candidate_rotation):
                     continue
@@ -235,7 +310,7 @@ class PdfSignatureService:
                 if spare_height >= 0 and scale >= 0.999:
                     return
 
-        raise SignaturePlacementError("El contenido de la firma interna no cabe ni a 6 puntos")
+        raise SignaturePlacementError("El contenido de la firma interna no cabe en el area definida")
 
     def _fit_image_rect(self, box: fitz.Rect, image_width: int, image_height: int, effective_rotation: int) -> fitz.Rect:
         effective_width = float(image_height if effective_rotation in {90, 270} else image_width)
