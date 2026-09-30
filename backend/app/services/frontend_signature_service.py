@@ -360,6 +360,7 @@ class FrontendSignatureService:
             signer_name=participant.nomcom,
             signer_role=participant.rolpro,
             tipfir=firma.tipfir,
+            step_type=step.pastip,
             estado=firma.estado,
             revnum=firma.revnum,
             participant_verlock=participant.verlock,

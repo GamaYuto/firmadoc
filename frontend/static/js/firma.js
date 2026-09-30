@@ -1,7 +1,15 @@
 import { apiFetch, apiFetchBinary, escapeText, parseFirmaIdFromPath, setBusy, showAlert, setSessionUser, getCurrentUser } from "./api.js?v=12.1";
 import { PdfViewer } from "./pdf-viewer.js";
 import { isPngDataUrlWithinLimit, pngDataUrlBinarySize } from "./signature-utils.js";
-import { getPublicationControlState, getResultPdfSource, getStatusLabel, isLocalResultReady, isSignatureAttemptActive } from "./workflow-state.js?v=12.2";
+import {
+  getPublicationControlState,
+  getResultPdfSource,
+  getStatusLabel,
+  isLocalResultReady,
+  isManagerApprovalFlow,
+  isSignatureAttemptActive,
+  requiresLiveSignaturePreparation,
+} from "./workflow-state.js?v=12.2";
 import { clearFeedback, showUiError } from "./ui-feedback.js?v=12.1";
 
 const firid = parseFirmaIdFromPath();
@@ -112,30 +120,44 @@ async function loadSignature() {
   docName.textContent = detail.document_name;
   docStatus.textContent = getStatusLabel(detail.document_status || detail.estado);
   signerName.textContent = detail.signer_name;
-  typeText.textContent = detail.tipfir === "INTERNA" ? "Firma interna" : "Firma manuscrita";
+  typeText.textContent = isManagerApprovalFlow(detail)
+    ? "Autorización de Gerencia"
+    : detail.tipfir === "INTERNA"
+      ? "Firma interna"
+      : "Firma manuscrita";
   localResultPdfUrl = `/api/firma/firmas/${firid}/resultado/pdf`;
 
   sourcePdfUrl = `/api/alfresco/nodes/${detail.node_id}/content`;
-  preparation = await apiFetch(`/api/firma/preparacion/doc/${detail.docid}`, { user: getCurrentUser("firmante") });
-  const sourcePositions = detail.positions.map((position, index) => ({ ...position, id: `sign-${index}`, saved: true }));
+  if (isManagerApprovalFlow(detail)) {
+    setClosedSignatureMode();
 
-  if (isSignatureAttemptActive(detail.estado) && !isLocalResultReady(detail.document_status)) {
-    await viewer.load(sourcePdfUrl, preparation.pages, sourcePositions);
-    setActiveSignatureMode();
+    if (isLocalResultReady(detail.document_status)) {
+      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+      renderResult(result);
+    } else {
+      resultPanel.hidden = true;
+      showAlert(alertBox, "info", "El documento está pendiente de autorización por Gerencia.");
+    }
     return;
   }
 
-  setClosedSignatureMode();
-  if (isLocalResultReady(detail.document_status)) {
-    const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
-    renderResult(result);
-  } else {
-    viewer.load(sourcePdfUrl, preparation.pages, sourcePositions).catch((error) => {
-      showUiError(alertBox, error, { onRetry: loadSignature });
-    });
-    resultPanel.hidden = true;
-    showAlert(alertBox, "info", "El intento ya fue procesado. El resultado local solo esta disponible cuando la firma final queda pendiente de publicacion.");
+  const needsLivePreparation = requiresLiveSignaturePreparation(detail);
+  if (!needsLivePreparation) {
+    setClosedSignatureMode();
+    if (isLocalResultReady(detail.document_status)) {
+      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+      renderResult(result);
+    } else {
+      resultPanel.hidden = true;
+      showAlert(alertBox, "info", "El intento ya fue procesado. El resultado local solo esta disponible cuando la firma final queda pendiente de publicacion.");
+    }
+    return;
   }
+
+  preparation = await apiFetch(`/api/firma/preparacion/doc/${detail.docid}`, { user: getCurrentUser("firmante") });
+  const sourcePositions = detail.positions.map((position, index) => ({ ...position, id: `sign-${index}`, saved: true }));
+  await viewer.load(sourcePdfUrl, preparation.pages, sourcePositions);
+  setActiveSignatureMode();
 }
 
 function setActiveSignatureMode() {
@@ -157,8 +179,13 @@ function setActiveSignatureMode() {
 }
 
 function setClosedSignatureMode() {
-  taskKicker.textContent = "Resultado";
-  taskTitle.textContent = detail?.document_status === "COMPLETADO" ? "Firma publicada" : "Firma completada";
+  if (isManagerApprovalFlow(detail)) {
+    taskKicker.textContent = "Autorización completada";
+    taskTitle.textContent = "Autorizado por Gerencia";
+  } else {
+    taskKicker.textContent = "Resultado";
+    taskTitle.textContent = detail?.document_status === "COMPLETADO" ? "Firma publicada" : "Firma completada";
+  }
   handwrittenPanel.hidden = true;
   internalPanel.hidden = true;
   clearButton.hidden = true;

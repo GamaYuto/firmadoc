@@ -148,6 +148,7 @@ class SignatureDetail(BaseModel):
     signer_name: str
     signer_role: Optional[str] = None
     tipfir: Literal["MANUSCRITA", "INTERNA"]
+    step_type: str
     estado: str
     revnum: int
     participant_verlock: int

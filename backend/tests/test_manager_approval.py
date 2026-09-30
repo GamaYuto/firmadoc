@@ -271,6 +271,31 @@ def test_manager_token_expiration(client, db_session, manager_environment):
     assert db_session.get(SesionQr, session.sesid).estado == EstadoSesionQr.EXPIRADO.value
 
 
+def test_manager_approval_result_exposes_step_type_without_firmar_step(client, db_session, manager_environment):
+    created = _create_request(client, uuid4())
+    token = created["approval_url"].split("#", 1)[1]
+    approval = client.post(
+        "/api/firma/gerencia/autorizar",
+        json={"token": token},
+        headers={"X-FirmaDoc-User": "gerente.lab"},
+    )
+    assert approval.status_code == 200, approval.text
+
+    detail = client.get(
+        f"/api/firma/firmas/{created['firid']}",
+        headers={"X-FirmaDoc-User": "gerente.lab"},
+    )
+    assert detail.status_code == 200, detail.text
+    payload = detail.json()
+    assert payload["document_status"] == "PENDIENTE_PUBLICACION"
+    assert payload["step_type"] == "APROBAR"
+    assert payload["tipfir"] == "INTERNA"
+
+    step = db_session.scalar(select(DocPaso).where(DocPaso.docid == created["docid"]).order_by(DocPaso.dpasid.desc()))
+    assert step.pastip == "APROBAR"
+    assert step.estado == "COMPLETADO"
+
+
 @pytest.mark.parametrize("change", ["version", "hash"])
 def test_manager_remote_change_blocks_authorization(
     client, db_session, manager_environment, change

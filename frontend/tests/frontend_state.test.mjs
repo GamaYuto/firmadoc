@@ -11,8 +11,10 @@ import {
   getResultPdfSource,
   getStatusLabel,
   isLocalResultReady,
+  isManagerApprovalFlow,
   isPreparationEditableStatus,
   isSignatureAttemptActive,
+  requiresLiveSignaturePreparation,
 } from "../static/js/workflow-state.js";
 import { describeUiError } from "../static/js/ui-feedback.js";
 import { consumeApprovalToken } from "../static/js/manager-approval-token.js";
@@ -124,6 +126,17 @@ test("describeUiError distingue permisos, expiracion y fallos temporales", () =>
   assert.equal(describeUiError({ status: 410, message: "Expirada" }).title, "Sesion expirada");
   assert.equal(describeUiError({ status: 503, message: "No disponible" }).retryable, true);
   assert.equal(describeUiError({ code: "PUBLICATION_RECONCILIATION_REQUIRED" }).title, "Publicacion por verificar");
+});
+
+test("Gerencia APROBAR no se trata como firma interna activa", () => {
+  const detail = {
+    step_type: "APROBAR",
+    estado: "COMPLETADA",
+    document_status: "PENDIENTE_PUBLICACION",
+  };
+  assert.equal(isManagerApprovalFlow(detail), true);
+  assert.equal(requiresLiveSignaturePreparation(detail), false);
+  assert.equal(isSignatureAttemptActive(detail.estado), false);
 });
 
 test("getStatusLabel traduce estados del flujo sin alterar desconocidos", () => {

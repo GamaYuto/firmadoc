@@ -18,6 +18,23 @@ export function isLocalResultReady(status) {
   return LOCAL_RESULT_STATUSES.has(normalizeStatus(status));
 }
 
+export function getEffectiveStepType(detail) {
+  const value = detail?.step_type ?? detail?.pastip ?? detail?.etapa ?? "FIRMAR";
+  return String(value || "FIRMAR").trim().toUpperCase();
+}
+
+export function isManagerApprovalFlow(detail) {
+  return getEffectiveStepType(detail) === "APROBAR";
+}
+
+export function requiresLiveSignaturePreparation(detail) {
+  if (!detail) return false;
+  const stepType = getEffectiveStepType(detail);
+  const signatureStatus = normalizeStatus(detail.estado);
+  const documentStatus = normalizeStatus(detail.document_status);
+  return stepType === "FIRMAR" && isSignatureAttemptActive(signatureStatus) && !isLocalResultReady(documentStatus);
+}
+
 export function getResultPdfSource(status) {
   const normalized = normalizeStatus(status);
   if (normalized === "PENDIENTE_PUBLICACION") return "LOCAL";
