@@ -1,0 +1,217 @@
+Integración persistente Share → FirmaDoc SSO
+Verificación: 2026-10-01 (UTC). Host: alfresco@192.168.0.10.
+
+Estado: integración desplegada; Share healthy; flujo SSO real y pruebas negativas
+correctos. Pendiente únicamente la comprobación visual del botón con un usuario
+que tenga Write sobre un PDF. La cuenta técnica disponible solo tiene lectura.
+
+1. Contrato receptor comprobado
+Fuentes leídas completas: backend/app/core/sso.py, backend/app/api/auth.py,
+backend/app/core/config.py, backend/tests/test_auth.py y conftest.py.
+
+Formato: v1.<payload-base64url>.<firma-base64url>.
+Payload: objeto JSON codificado en UTF-8; base64url sin padding "=".
+Firma: HMAC-SHA256(secret UTF-8, bytes UTF-8 de "v1."+payload-base64url).
+No es un JWT. La firma cubre los bytes serializados; no exige orden de claves.
+
+Claims exigidos:
+- iss: alfresco-share.
+- aud: firmadoc.
+- sub: usuario de sesión Share; receptor permite [A-Za-z0-9._@-]+.
+- iat/exp: segundos Unix, convertibles a enteros.
+- jti: identificador de 16 a 128 caracteres [A-Za-z0-9._:-]+.
+- nid: UUID del nodo sin prefijo workspace://SpacesStore/.
+- ret: URL de retorno validada por origen.
+
+El emisor genera exclusivamente esas ocho claims, un UUID aleatorio como jti y
+exp=iat+60. El receptor exige exp>ahora, |ahora-iat|<=clock_skew, y
+exp-iat<=max_age+clock_skew. Ambos ajustes del LAB son 60 segundos: aunque ese
+verificador admite hasta 120 segundos por su tolerancia, el emisor solo usa 60.
+No se cambió el contrato receptor.
+
+Exchange: POST HTTPS https://firmadoc-lab.test/api/auth/sso/exchange;
+formulario application/x-www-form-urlencoded; campo exacto assertion.
+La identidad se resuelve contra el directorio y debe coincidir con sub.
+Éxito: cookie de sesión y HTTP 303 a
+/iniciar?nodeId=<UUID>&returnUrl=<URL codificada>.
+Errores: 400 por aserción ausente/inválida/caducada/repetida; 401 por resolución
+de identidad; 403 con SSO deshabilitado; 503 si falta el almacenamiento replay.
+Replay: SHA-256(jti) en la tabla existente ssojti; se comprobó que el segundo
+consumo devuelve 400. No se modificaron tablas, PostgreSQL ni Alembic.
+El origen permitido en el backend activo es exclusivamente
+https://alfresco-lab.test.
+
+2. Archivos persistentes en el host
+Base Compose:
+/home/alfresco/alfresco-lab/acs-deployment/docker-compose
+
+Archivos completados/conservados:
+- config/share/share-config-custom.firmadoc.xml
+- config/share/site-webscripts/firmadoc/sso-start.get.desc.xml
+- config/share/site-webscripts/firmadoc/sso-start.get.js
+- config/share/site-webscripts/firmadoc/sso-start.get.html.ftl
+- firmadoc-share-override.yaml
+- /home/alfresco/firmadoc/secrets/share-sso-secret
+
+Se conservaron los tres whoami existentes, incluido whoami.get.json.ftl.
+No se volvió a copiar el XML activo encima del destino persistente existente.
+
+Backups:
+- /home/alfresco/alfresco-lab/backups/share/share-config-custom.firmadoc.xml
+- /home/alfresco/alfresco-lab/backups/share/share-config-custom.firmadoc.before-sso-20261001.xml
+- /home/alfresco/alfresco-lab/backups/share/sso-resume-20261001T053133Z/
+La ruta /home/alfresco/backups/share/share-config-custom.firmadoc.xml indicada
+en el encargo no existe actualmente. Se encontró la copia bajo alfresco-lab y
+se comprobó que coincidía byte por byte con el XML activo anterior.
+El único cambio del XML completo fue el href de Firmar.
+
+3. Acción Share persistente y URL final
+/share/page/firmadoc/sso-start?nodeId={node.nodeRef}&returnUrl=https://alfresco-lab.test/share/page/document-details?nodeRef={node.nodeRef}
+
+En XML, el separador se expresa como &amp;.
+El XML activo coincide byte por byte con la fuente del host; no contiene
+192.168.0.112. Se conserva target=_self y la condición de permiso Write.
+También se actualizó el ejemplo local docs/alfresco_extension/share-config-custom.xml.
+
+4. Emisor server-side
+Descriptor /firmadoc/sso-start con authentication=user y caché deshabilitada.
+La ruta /share/page/firmadoc/sso-start se probó realmente con sesión Share.
+La identidad se toma solo de user.name; user/username en query se ignoran.
+Se rechazan usuario vacío/invitado, nodeId ausente/inválido y retorno externo.
+El controlador usa un ámbito de función, devuelve errores controlados y
+convierte explícitamente cadenas JavaScript a java.lang.String para getBytes.
+Se confirmó en Rhino 1.7.15.1 que getBytes no existe en una cadena JavaScript.
+La plantilla entrega un formulario POST, autoenvío y alternativa sin JavaScript;
+no incluye el secreto. El token va en el cuerpo, no en URL. Referrer=no-referrer.
+Los hashes SHA-256 de los tres archivos locales coinciden con el host desplegado.
+
+5. Secreto
+Se conserva /home/alfresco/firmadoc/secrets/share-sso-secret.
+Directorio 700, archivo 600; coincide con FIRMADOC_SSO_SECRET del backend activo.
+Share lo lee server-side usando BufferedReader/InputStreamReader UTF-8 desde
+/run/secrets/firmadoc-sso-secret, montado read-only.
+No se copió el secreto al repositorio ni se imprimieron secretos/aserciones/cookies.
+Se inspeccionaron stdout/stderr Docker y logs Tomcat después del despliegue:
+sin el valor del secreto ni aserciones completas.
+
+6. Override Compose
+Se utilizaron exactamente los Compose originales:
+community-compose.yaml + https-override.yaml
+y se añadió firmadoc-share-override.yaml.
+
+Solo cambia share: tres mounts read-only, una variable no secreta de destino y
+entrypoint compatible con XML inmutable. El script original substituter.sh usa
+sed -i sobre el XML; la primera recreación falló con "Device or resource busy".
+El override evita reescribir el XML ya resuelto y conserva el tratamiento de
+USE_SSL sobre server.xml antes de exec catalina.sh run. En este LAB USE_SSL no
+está configurado. El contenedor corregido arrancó correctamente.
+
+No se montó todo shared/classes ni claves TLS. create_host_path=false en los
+tres mounts. El override local es copia exacta del desplegado y sus rutas
+relativas se interpretan desde la base Compose, no desde docs/.
+
+7. Validaciones previas y finales
+- XML completo y descriptores parseados con ElementTree.
+- docker compose config --quiet y config --format json correctos.
+- Diff estructural: solo share; campos entrypoint/environment/volumes.
+- Ningún cambio en otros servicios ni definiciones superiores del Compose.
+- Fuentes existentes, sin IP antigua, con sso-start.
+- Secreto alineado; permisos 700/600; no incrustado en XML/JS/FTL/override.
+- Sintaxis JavaScript y Python comprobada localmente.
+- Pruebas receptor existentes: 10 passed, 22 deselected.
+  Se ejecutaron con TESTING=1 y DATABASE_URL=sqlite:///firmadoc_sso_test,
+  proveedor de identidad falso y valores de configuración exclusivamente de
+  pruebas. No se usó la base PostgreSQL real.
+  El intento inicial sin TESTING falló en los dos casos de identidad por intentar
+  resolver usuarios en un directorio no configurado; al usar el modo de pruebas
+  previsto por el repositorio pasaron los diez casos sin modificar el backend.
+
+8. Recreación de Share
+Comando desde la base Compose:
+docker compose -f community-compose.yaml -f https-override.yaml -f firmadoc-share-override.yaml up -d --no-deps --force-recreate --no-build --pull never share
+
+Estado final docker-compose-share-1: running y healthy.
+Se hicieron recreaciones adicionales para corregir arranque y compatibilidad
+Rhino. Nunca se ejecutó compose down. Los ID y StartedAt de todos los demás
+contenedores coinciden con la captura previa.
+
+9. Mounts confirmados después de recrear
+config/share/share-config-custom.firmadoc.xml
+  -> /usr/local/tomcat/shared/classes/alfresco/web-extension/share-config-custom.xml
+config/share/site-webscripts/firmadoc/
+  -> /usr/local/tomcat/shared/classes/alfresco/web-extension/site-webscripts/firmadoc
+/home/alfresco/firmadoc/secrets/share-sso-secret
+  -> /run/secrets/firmadoc-sso-secret
+Los tres tienen RW=false. La etiqueta de Compose incluye los tres archivos.
+legacy_ip_present=false; sso_start_present=true; secret_value_not_logged=true.
+
+10. Comprobación del botón
+URL persistente y activa verificada en el punto 3.
+La página de detalle del PDF respondió 200 y no contiene la IP antigua.
+La cuenta firma_service no tiene update/Write sobre el único PDF disponible;
+Share oculta Firmar correctamente. No se cambiaron ACL ni se elevó esa cuenta.
+La comprobación visual con Write queda preparada en el punto 13.
+
+11. Prueba SSO real
+Prueba contra URLs públicas HTTPS con la CA existente y verificación TLS activa.
+Se inició sesión Share con la cuenta técnica ya configurada en FirmaDoc.
+Se utilizó un PDF existente, no un UUID sintético.
+Resultados:
+share_user_present=true
+assertion_generated=true
+issuer=alfresco-share
+audience=firmadoc
+jti_present=true
+token_expiry_valid=true
+destination_host=firmadoc-lab.test
+return_origin=https://alfresco-lab.test
+hmac_valid=true
+browser_identity_ignored=true
+exchange_303=true
+secure_httponly_session_cookie=true
+firmadoc_identity_matches_share=true
+iniciar_page_accessible=true
+node_return_preserved=true
+
+No se firmaron documentos. Solo se crearon sesiones y registros de consumo SSO
+normales. El host no resuelve firmadoc-lab.test por sí mismo; la prueba resolvió
+ambos nombres a 192.168.0.10 exclusivamente dentro de su proceso Python,
+conservando hostname/SNI y validación de certificado. No se modificó DNS/hosts.
+
+12. Pruebas negativas
+En el entorno real:
+- Anónimo: respuesta vacía HTTP 200 del runtime, sin aserción.
+- nodeId ausente o inválido: 400 sin aserción.
+- returnUrl ausente, externo, dominio parecido, userinfo engañoso o HTTP: 400.
+- user/username manipulados en URL: no cambian la identidad autenticada.
+- Misma aserción por segunda vez: 400.
+- Aserción expirada: 400.
+- Issuer incorrecto: 400.
+- Audience incorrecto: 400.
+- Firma alterada: 400.
+Además, 10 tests SSO existentes pasaron localmente.
+Evidencia local: sso-verification-20261001.txt.
+Script reproducible: verify_share_sso.py.
+Copias host bajo /home/alfresco/alfresco-lab/backups/share/.
+
+13. Pendientes y operación
+Para comprobar visualmente Firmar:
+a) Entrar a https://alfresco-lab.test/share con un usuario con Write sobre un PDF.
+b) Abrir el detalle del PDF y pulsar "Firmar documento (FirmaDoc)".
+c) Confirmar que se pasa por /share/page/firmadoc/sso-start y se llega a
+   https://firmadoc-lab.test/iniciar con el mismo nodo y retorno Alfresco.
+d) Confirmar la identidad en FirmaDoc y que Volver lleva al documento original.
+   No hace falta firmar el PDF para esta comprobación.
+
+En futuras recreaciones del stack se deben incluir los tres archivos Compose.
+Si cambian REPO_HOST/REPO_PORT o las reglas CSRF, actualizar explícitamente el
+XML persistente: el arranque ya no lo sustituye dinámicamente.
+Para rotar el secreto, coordinar el mismo valor entre backend y archivo Share.
+Esta entrega no incluye rotación ni cambios de permisos del documento.
+
+Sin cambios al backend/contrato SSO, PostgreSQL, Alembic, certificados, Traefik,
+DNS o Alfresco Repository durante esta continuación. Sin git add/commit/push.
+Se preservaron todos los cambios previos del repositorio ajenos a esta tarea.
+
+Referencia de autenticación del descriptor (documentación oficial):
+https://github.com/Alfresco/docs-alfresco/blob/master/_archive/content-services/5.2/references/api-wsdl-authentication.md

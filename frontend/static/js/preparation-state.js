@@ -41,3 +41,4 @@ export function buildDraftPayload(positions) {
 export function hasDirtyState(state) {
   return Boolean(state?.dirty || state?.positions?.some((position) => position.dirty === true || position.saved === false));
 }
+

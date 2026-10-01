@@ -82,7 +82,10 @@ def db(db_session):
 
 @pytest.fixture(autouse=True)
 def clean_db(request):
-    if "test_auth" in request.module.__name__ or "test_qr_mobile" in request.module.__name__:
+    if any(
+        module_name in request.module.__name__
+        for module_name in ("test_auth", "test_qr_mobile", "test_docfirma_migration")
+    ):
         return
     db_session = request.getfixturevalue("db_session")
     db_session.rollback()

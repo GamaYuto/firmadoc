@@ -1,0 +1,7 @@
+<webscript>
+    <shortname>FirmaDoc WhoAmI</shortname>
+    <description>Shows the authenticated Share identity for FirmaDoc SSO validation.</description>
+    <family>Share</family>
+    <url>/firmadoc/whoami</url>
+    <authentication>user</authentication>
+</webscript>

@@ -176,6 +176,15 @@ export class PdfViewer {
     this.onSelectionChange(null);
   }
 
+  clearPositions() {
+    this.positions = [];
+    this.selectedId = null;
+    this._setDirty(true);
+    this.onPositionsChange([]);
+    this.onSelectionChange(null);
+    void this.render();
+  }
+
   select(id) {
     this.selectedId = id;
     this._refreshAllPositionElements();
@@ -435,4 +444,5 @@ export class PdfViewer {
     this.onDirtyChange(next);
   }
 }
+
 

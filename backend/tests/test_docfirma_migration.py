@@ -1,20 +1,23 @@
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
+from app.core.sso import DatabaseReplayStore, SsoAssertionError, SsoReplayStoreUnavailableError
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
-HEAD_REV = "d2b8c7a1e5f4"
+HEAD_REV = "d6d4d4a7d946"
 BASE_REV = "f61284a6c891"
-DATABASE_URL = settings.DATABASE_URL
+MIGRATION_DATABASE_URL = settings.DATABASE_URL
 
 
 def _alembic_cfg() -> Config:
@@ -22,7 +25,7 @@ def _alembic_cfg() -> Config:
 
 
 def _make_db():
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(MIGRATION_DATABASE_URL)
     session_factory = sessionmaker(bind=engine)
     return engine, session_factory
 
@@ -38,7 +41,7 @@ def _table_exists(db, table_name: str) -> bool:
     return bool(
         db.execute(
             text("SELECT to_regclass(:name) IS NOT NULL"),
-            {"name": f"public.{table_name}"},
+            {"name": table_name},
         ).scalar()
     )
 
@@ -49,7 +52,7 @@ def _index_def(db, index_name: str) -> str:
             """
             SELECT indexdef
             FROM pg_indexes
-            WHERE schemaname = 'public'
+            WHERE schemaname = current_schema()
               AND indexname = :name
             """
         ),
@@ -65,7 +68,7 @@ def _constraint_def(db, table_name: str, constraint_name: str) -> str:
             FROM pg_constraint c
             JOIN pg_class t ON t.oid = c.conrelid
             JOIN pg_namespace n ON n.oid = t.relnamespace
-            WHERE n.nspname = 'public'
+            WHERE n.nspname = current_schema()
               AND t.relname = :table_name
               AND c.conname = :constraint_name
             """
@@ -76,6 +79,37 @@ def _constraint_def(db, table_name: str, constraint_name: str) -> str:
 
 def _version_num(db) -> str:
     return db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def isolated_migration_schema():
+    original_url = settings.DATABASE_URL
+    database_url = make_url(original_url)
+    if not (database_url.database or "").endswith("_test"):
+        pytest.exit("REFUSING_TO_RUN_MIGRATION_TESTS_AGAINST_NON_TEST_DATABASE", returncode=2)
+
+    schema_name = f"migration_test_{uuid4().hex}"
+    maintenance_engine = create_engine(original_url)
+    with maintenance_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+
+    scoped_url = database_url.set(
+        query={**database_url.query, "options": f"-csearch_path={schema_name}"}
+    ).render_as_string(hide_password=False)
+    global MIGRATION_DATABASE_URL
+    MIGRATION_DATABASE_URL = scoped_url
+    settings.DATABASE_URL = scoped_url.replace("%", "%%")
+    try:
+        command.upgrade(_alembic_cfg(), BASE_REV)
+        yield
+    finally:
+        settings.DATABASE_URL = original_url
+        MIGRATION_DATABASE_URL = original_url
+        try:
+            with maintenance_engine.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
+        finally:
+            maintenance_engine.dispose()
 
 
 def test_migration_upgrade_downgrade_normal():
@@ -228,6 +262,61 @@ def test_migration_crea_constraints_e_indices():
         assert "WHERE" in docfirma_docid_index
         assert "WHERE" in docfirma_parid_index
         assert "FIRMA" in audifir_constraint
+    finally:
+        _close_db(db, engine)
+        command.upgrade(cfg, "head")
+
+
+def test_migration_ssojti_replay_runtime_before_and_after_upgrade(monkeypatch):
+    engine, Session = _make_db()
+    db = Session()
+    cfg = _alembic_cfg()
+    replay_store_sessions = sessionmaker(bind=engine)
+    monkeypatch.setattr("app.core.sso.SessionLocal", replay_store_sessions)
+    replay_store = DatabaseReplayStore()
+    jti = uuid4().hex
+    expires_at = 2_000_000_000
+    try:
+        command.downgrade(cfg, "d2b8c7a1e5f4")
+        db.close()
+        db = Session()
+
+        assert _version_num(db) == "d2b8c7a1e5f4"
+        assert not _table_exists(db, "ssojti")
+        with pytest.raises(SsoReplayStoreUnavailableError):
+            replay_store.consume(jti, expires_at)
+        assert not _table_exists(db, "ssojti")
+        assert _version_num(db) == "d2b8c7a1e5f4"
+
+        command.upgrade(cfg, HEAD_REV)
+        db.close()
+        db = Session()
+
+        assert _version_num(db) == HEAD_REV
+        assert _table_exists(db, "ssojti")
+        assert {column["name"] for column in inspect(db.bind).get_columns("ssojti")} == {
+            "jtihas",
+            "fecexp",
+            "fecuse",
+        }
+        assert "ix_ssojti_fecexp" in inspect(db.bind).get_indexes("ssojti")[0]["name"]
+
+        replay_store.consume(jti, expires_at)
+        with pytest.raises(SsoAssertionError, match="ya fue usado"):
+            replay_store.consume(jti, expires_at)
+
+        command.downgrade(cfg, "d2b8c7a1e5f4")
+        db.close()
+        db = Session()
+
+        assert _version_num(db) == "d2b8c7a1e5f4"
+        assert not _table_exists(db, "ssojti")
+
+        command.upgrade(cfg, HEAD_REV)
+        db.close()
+        db = Session()
+        assert _version_num(db) == HEAD_REV
+        assert _table_exists(db, "ssojti")
     finally:
         _close_db(db, engine)
         command.upgrade(cfg, "head")

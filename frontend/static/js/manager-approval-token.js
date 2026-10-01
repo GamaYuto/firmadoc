@@ -3,3 +3,4 @@ export function consumeApprovalToken(locationLike, historyLike) {
   historyLike.replaceState(null, "", "/autorizar-gerencia");
   return token;
 }
+

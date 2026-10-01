@@ -9,3 +9,4 @@ from app.models.docpart import DocPart
 from app.models.docfirma import DocFirma
 from app.models.firpos import Firpos
 from app.models.sesionqr import SesionQr, EstadoSesionQr
+from app.models.sso_replay import SsoReplay

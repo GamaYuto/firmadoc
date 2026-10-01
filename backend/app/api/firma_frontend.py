@@ -224,7 +224,7 @@ async def get_preparation_by_doc(
     db: Session = Depends(get_db),
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
-    return await frontend_signature_service.refresh_preparation(db, docid)
+    return await frontend_signature_service.refresh_preparation(db, docid, principal)
 
 
 @router.post("/preparacion/{docid}/borrador", response_model=PreparationRead)

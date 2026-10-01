@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchBinary, escapeText, parseFirmaIdFromPath, setBusy, showAlert, setSessionUser, getCurrentUser } from "./api.js?v=12.1";
+import { apiFetch, apiFetchBinary, escapeText, parseFirmaIdFromPath, setBusy, showAlert } from "./api.js?v=12.1";
 import { PdfViewer } from "./pdf-viewer.js";
 import { isPngDataUrlWithinLimit, pngDataUrlBinarySize } from "./signature-utils.js";
 import {
@@ -63,22 +63,7 @@ init().catch((error) => showUiError(alertBox, error, { onRetry: () => window.loc
 
 async function init() {
   if (!firid) throw new Error("Identificador de firma invalido");
-  const user = params.get("user") || "firmante";
-  if (userInput) {
-    userInput.value = user;
-    userInput.addEventListener("change", async () => {
-      const newUser = userInput.value.trim();
-      if (newUser) {
-        try {
-          await setSessionUser(newUser);
-          await loadSignature();
-        } catch (error) {
-          showUiError(alertBox, error, { onRetry: loadSignature });
-        }
-      }
-    });
-  }
-  await setSessionUser(user);
+
   viewer = new PdfViewer({
     container: document.querySelector("#pdfContainer"),
     thumbs: document.querySelector("#thumbs"),
@@ -98,7 +83,7 @@ function bindControls() {
   cancelButton.addEventListener("click", () => {
     if (window.confirm("Desea cancelar y volver a pendientes?")) {
       cleanupSignature();
-      window.location.href = `/pendientes?user=${encodeURIComponent(getCurrentUser("firmante"))}`;
+      window.location.href = `/pendientes`;
     }
   });
   clearButton.addEventListener("click", () => {
@@ -117,7 +102,7 @@ async function loadSignature() {
   cleanupSignature();
   clearFeedback(alertBox);
   pageStatus.textContent = "Cargando documento";
-  detail = await apiFetch(`/api/firma/firmas/${firid}`, { user: getCurrentUser("firmante") });
+  detail = await apiFetch(`/api/firma/firmas/${firid}`);
   docName.textContent = detail.document_name;
   docStatus.textContent = getStatusLabel(detail.document_status || detail.estado);
   signerName.textContent = detail.signer_name;
@@ -133,7 +118,7 @@ async function loadSignature() {
     setClosedSignatureMode();
 
     if (isLocalResultReady(detail.document_status)) {
-      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`);
       await renderResult(result);
     } else {
       resultPanel.hidden = true;
@@ -146,7 +131,7 @@ async function loadSignature() {
   if (!needsLivePreparation) {
     setClosedSignatureMode();
     if (isLocalResultReady(detail.document_status)) {
-      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`);
       await renderResult(result);
     } else {
       resultPanel.hidden = true;
@@ -155,7 +140,7 @@ async function loadSignature() {
     return;
   }
 
-  preparation = await apiFetch(`/api/firma/preparacion/doc/${detail.docid}`, { user: getCurrentUser("firmante") });
+  preparation = await apiFetch(`/api/firma/preparacion/doc/${detail.docid}`);
   const sourcePositions = detail.positions.map((position, index) => ({ ...position, id: `sign-${index}`, saved: true }));
   await viewer.load(sourcePdfUrl, preparation.pages, sourcePositions);
   setActiveSignatureMode();
@@ -282,13 +267,13 @@ async function confirmSignature() {
       }
       result = await apiFetch(`/api/firma/firmas/${firid}/confirmar-manuscrita`, {
         method: "POST",
-        user: getCurrentUser("firmante"),
+        
         body: JSON.stringify({ png_data_url: dataUrl }),
       });
     } else {
       result = await apiFetch(`/api/firma/firmas/${firid}/confirmar-interna`, {
         method: "POST",
-        user: getCurrentUser("firmante"),
+        
         body: JSON.stringify({ confirm: true }),
       });
     }
@@ -307,11 +292,11 @@ async function publishToAlfresco(event) {
     setBusy(button, true, "Publicando");
     const publication = await apiFetch(`/api/firma/documentos/${detail.docid}/publicar`, {
       method: "POST",
-      user: getCurrentUser("firmante"),
+      
     });
     showAlert(alertBox, "success", publication.message);
     if (await redirectToReturnUrlAfterPublication()) return;
-    const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+    const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`);
     await renderResult(result);
   } catch (error) {
     showUiError(alertBox, error, { context: "publication", onRetry: loadSignature });
@@ -368,7 +353,7 @@ async function loadResultPdfInline(url, pdfSource, retryAction) {
       resultObjectUrl = null;
     }
     const loadUrl = pdfSource === "LOCAL"
-      ? URL.createObjectURL(await apiFetchBinary(url, { user: getCurrentUser("firmante") }))
+      ? URL.createObjectURL(await apiFetchBinary(url))
       : url;
     if (pdfSource === "LOCAL") {
       resultObjectUrl = loadUrl;
@@ -395,7 +380,7 @@ async function renderResult(result) {
   const pdfSource = getResultPdfSource(resultStatus);
   resultPdfUrl = pdfSource === "LOCAL" ? localResultPdfUrl : pdfSource === "ALFRESCO" ? sourcePdfUrl : null;
   const retryResultLoad = async () => {
-    const refreshed = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+    const refreshed = await apiFetch(`/api/firma/firmas/${firid}/resultado`);
     await renderResult(refreshed);
   };
   const pdfLoaded = resultPdfUrl
@@ -446,7 +431,7 @@ async function renderResult(result) {
     <div class="button-row">
       ${publishButton}
       ${resultPdfButton}
-      <a class="btn btn-primary" href="/pendientes?user=${encodeURIComponent(getCurrentUser("firmante"))}">Volver a pendientes</a>
+      <a class="btn btn-primary" href="/pendientes">Volver a pendientes</a>
       ${params.get("returnUrl") ? `<a class="btn btn-success" href="${escapeText(params.get("returnUrl"))}">Volver a Alfresco</a>` : ""}
     </div>
   `;
@@ -476,7 +461,7 @@ async function openQrModal() {
     setBusy(openQrButton, true, "Generando QR");
     const qrData = await apiFetch(`/api/firma/firmas/${firid}/qr`, {
       method: "POST",
-      user: getCurrentUser("firmante"),
+      
     });
     currentQrSessionId = qrData.sesid;
     qrContainer.innerHTML = "";
@@ -543,14 +528,14 @@ async function pollQrStatus() {
   if (!currentQrSessionId) return;
   try {
     const statusData = await apiFetch(`/api/firma/qr/${currentQrSessionId}/estado`, {
-      user: getCurrentUser("firmante"),
+      
     });
     qrPollingFailures = 0;
     if (statusData.estado === "USADO") {
       closeQrModalView();
       showAlert(alertBox, "success", "Firma capturada y confirmada exitosamente desde el móvil.");
       cleanupSignature();
-      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`, { user: getCurrentUser("firmante") });
+      const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`);
       await renderResult(result);
     } else if (statusData.estado === "EXPIRADO" || statusData.estado === "CANCELADO") {
       closeQrModalView();
@@ -574,3 +559,4 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("beforeunload", () => {
   if (resultObjectUrl) URL.revokeObjectURL(resultObjectUrl);
 });
+

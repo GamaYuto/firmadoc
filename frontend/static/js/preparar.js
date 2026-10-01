@@ -1,4 +1,4 @@
-import { apiFetch, escapeText, isUuid, setBusy, showAlert, setSessionUser, getCurrentUser } from "./api.js";
+import { apiFetch, escapeText, isUuid, setBusy, showAlert } from "./api.js";
 import { PdfViewer } from "./pdf-viewer.js";
 import { buildDraftPayload, normalizeUser } from "./preparation-state.js";
 import { isPreparationEditableStatus } from "./workflow-state.js";
@@ -33,24 +33,13 @@ async function init() {
   if (!isUuid(nodeId)) {
     throw new Error("nodeId invalido. Abra la URL con /documentos/preparar?nodeId=<uuid>");
   }
-  const user = params.get("user") || "preparador";
-  if (userInput) {
-    userInput.value = user;
-    userInput.addEventListener("change", async () => {
-      const newUser = userInput.value.trim();
-      if (newUser) {
-        await setSessionUser(newUser);
-      }
-    });
-  }
-  await setSessionUser(user);
   preparation = await apiFetch(`/api/firma/preparacion/${nodeId}`);
   preparationEditable = isPreparationEditableStatus(preparation.status);
   viewer = new PdfViewer({
     container: document.querySelector("#pdfContainer"),
     thumbs: document.querySelector("#thumbs"),
     status: pageStatus,
-    userProvider: getCurrentUser,
+    
     editable: preparationEditable,
     onSelectionChange: renderPositionInfo,
     onDirtyChange: renderDirtyState,
@@ -263,3 +252,4 @@ async function saveAndSendToSignature() {
     renderDirtyState(viewer.isDirty());
   }
 }
+

@@ -21,10 +21,10 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.identity import FakeIdentityResolver, IdentitySnapshot
+from app.core.identity import get_identity_resolver, IdentityResolutionError, IdentitySnapshot
 from app.crud.crud_audifir import create_evento_tx
 from app.crud.crud_docfirma import crud_docfirma
-from app.crud.crud_docfir import get_active_by_node_version
+from app.crud.crud_docfir import get_active_by_node_version, get_active_by_node, build_active_process_detail
 from app.models.docfir import DocFir, EstadoDoc
 from app.models.docfirma import DocFirma, EstadoDocFirma, TipoFirma
 from app.models.docpart import DocPart
@@ -68,7 +68,7 @@ class FrontendSignatureService:
     def __init__(self, alfresco_client: AlfrescoClient | None = None) -> None:
         self.alfresco_client = alfresco_client or AlfrescoClient()
         self.document_service = DocumentService(self.alfresco_client)
-        self.identity_resolver = FakeIdentityResolver()
+        self.identity_resolver = get_identity_resolver()
 
     async def get_or_create_preparation(
         self,
@@ -84,24 +84,13 @@ class FrontendSignatureService:
             raise HTTPException(status_code=415, detail="El documento no es un PDF")
 
         version = metadata.version_label or "1.0"
-        doc = get_active_by_node_version(db, str(node_id), version)
-        if doc and doc.estado not in (EstadoDoc.BORRADOR.value, EstadoDoc.PREPARADO.value):
-            latest_signature = db.scalars(
-                select(DocFirma)
-                .where(DocFirma.docid == doc.docid)
-                .order_by(DocFirma.secuen.desc(), DocFirma.firid.desc())
-            ).first()
+        active_doc = get_active_by_node(db, str(node_id))
+        if active_doc and active_doc.estado not in (EstadoDoc.BORRADOR.value, EstadoDoc.PREPARADO.value):
             raise HTTPException(
                 status_code=409,
-                detail={
-                    "code": "ACTIVE_PROCESS",
-                    "message": "Ya existe un proceso activo para este documento",
-                    "docid": doc.docid,
-                    "status": doc.estado,
-                    "firid": latest_signature.firid if latest_signature else None,
-                    "signature_status": latest_signature.estado if latest_signature else None,
-                },
+                detail=build_active_process_detail(db, active_doc),
             )
+        doc = active_doc if active_doc and active_doc.verini == version else None
         if not doc:
             doc = await self.document_service.iniciar_proceso(db, node_id, actor_user, ip)
 
@@ -113,8 +102,22 @@ class FrontendSignatureService:
         db.refresh(step)
         return response
 
-    async def refresh_preparation(self, db: Session, docid: int) -> PreparationRead:
+    async def refresh_preparation(self, db: Session, docid: int, actor) -> PreparationRead:
         doc = self._get_doc(db, docid)
+        
+        has_access = False
+        if "GESTOR" in actor.roles or "ADMIN" in actor.roles:
+            has_access = True
+        elif doc.usrmod == actor.user_id or doc.usralt == actor.user_id:
+            has_access = True
+        else:
+            participant = db.execute(select(DocPart).where(DocPart.docid == docid, DocPart.usrid == actor.user_id)).scalar_one_or_none()
+            if participant:
+                has_access = True
+        
+        if not has_access:
+            raise HTTPException(status_code=403, detail="No tiene permisos para ver la preparacion de este documento")
+            
         step = self._get_signing_step(db, doc.docid)
         pages = await self._get_pdf_pages(UUID(doc.nodid))
         response = self._build_preparation_read(db, doc, step, pages)
@@ -632,7 +635,10 @@ class FrontendSignatureService:
     def _upsert_participant(self, db: Session, step: DocPaso, participant_payload, actor_user: str) -> DocPart:
         user_id = participant_payload.usrid
         participant = self._get_participant_by_user_for_update(db, step.dpasid, user_id)
-        snapshot = self.identity_resolver.resolve_user(user_id)
+        try:
+            snapshot = self.identity_resolver.resolve_user(user_id)
+        except IdentityResolutionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         if participant:
             if participant.estado not in ("PENDIENTE", "DISPONIBLE"):
                 raise HTTPException(status_code=409, detail="El firmante ya no puede modificarse")

@@ -9,7 +9,7 @@
                 type="link"
                 label="Firmar documento (FirmaDoc)">
 
-                <param name="href">http://192.168.0.112:8000/iniciar?nodeId={node.nodeRef}&amp;returnUrl=https://alfresco-lab.test/share/page/document-details?nodeRef={node.nodeRef}</param>
+                <param name="href">/share/page/firmadoc/sso-start?nodeId={node.nodeRef}&amp;returnUrl=https://alfresco-lab.test/share/page/document-details?nodeRef={node.nodeRef}</param>
 
                 <param name="target">_self</param>
 

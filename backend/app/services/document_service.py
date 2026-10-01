@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from app.services.alfresco_client import AlfrescoClient
 from app.services.temporary_artifact_service import TemporaryArtifactService, temporary_artifact_service
 import pymupdf as fitz
-from app.crud.crud_docfir import create_documento, get_active_by_node_version, cancel_documento, get_by_id, mark_error
+from app.crud.crud_docfir import create_documento, get_active_by_node_version, get_active_by_node, build_active_process_detail, cancel_documento, get_by_id, mark_error
 from app.crud.crud_audifir import create_evento, create_evento_tx
 from app.models.docfir import DocFir, EstadoDoc
 from app.models.docfirma import DocFirma, EstadoDocFirma
@@ -82,11 +82,14 @@ class DocumentService:
             verini = metadata.version_label or "1.0"
             
             # 2. Verificar concurrencia temprana
-            existing = get_active_by_node_version(db, str(node_id), verini)
+            existing = get_active_by_node(db, str(node_id))
             if existing:
                 create_evento(db, evento="DOC_DUPLI", iporig=ip, usrid=usrcre, detalle=f"Intento duplicado nodid: {node_id}, ver: {verini}")
                 db.commit()
-                raise HTTPException(status_code=409, detail="Ya existe un proceso activo para este documento y versión")
+                raise HTTPException(
+                    status_code=409,
+                    detail=build_active_process_detail(db, existing),
+                )
 
             # 3. Descargar y validar PDF
             temp_path, size_bytes, file_hash = await self.alfresco_client.download_node_content(node_id)
@@ -120,7 +123,15 @@ class DocumentService:
             db.rollback()
             # Falla de unicidad (índice parcial) o CheckConstraint
             logger.error(f"Integrity error iniciando proceso: {e}")
-            raise HTTPException(status_code=409, detail="Ya existe un proceso activo para este documento y versión")
+            existing = get_active_by_node(db, str(node_id))
+            if existing:
+                detail = build_active_process_detail(db, existing)
+            else:
+                detail = {
+                    "code": "ACTIVE_PROCESS",
+                    "message": "Ya existe un proceso activo para este documento",
+                }
+            raise HTTPException(status_code=409, detail=detail)
         except HTTPException:
             db.rollback()
             raise

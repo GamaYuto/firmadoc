@@ -1,0 +1,33 @@
+services:
+  share:
+    # The stock substituter rewrites XML, which is incompatible with a read-only bind.
+    # The mounted XML was copied from the running, already-substituted configuration.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ "$${USE_SSL:-false}" = "true" ]; then
+          sed -i 's/port="8080"/port="8080" scheme="https"/' /usr/local/tomcat/conf/server.xml
+        fi
+        exec catalina.sh run
+    environment:
+      FIRMADOC_SSO_DESTINATION: https://firmadoc-lab.test/api/auth/sso/exchange
+    volumes:
+      - type: bind
+        source: ./config/share/share-config-custom.firmadoc.xml
+        target: /usr/local/tomcat/shared/classes/alfresco/web-extension/share-config-custom.xml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./config/share/site-webscripts/firmadoc
+        target: /usr/local/tomcat/shared/classes/alfresco/web-extension/site-webscripts/firmadoc
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /home/alfresco/firmadoc/secrets/share-sso-secret
+        target: /run/secrets/firmadoc-sso-secret
+        read_only: true
+        bind:
+          create_host_path: false

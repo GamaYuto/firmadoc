@@ -1,0 +1,11 @@
+<webscript>
+    <shortname>FirmaDoc SSO Start</shortname>
+    <description>Starts a signed Share-to-FirmaDoc SSO exchange for the authenticated user.</description>
+    <family>Share</family>
+    <url>/firmadoc/sso-start</url>
+    <authentication>user</authentication>
+    <cache>
+        <never>true</never>
+        <public>false</public>
+    </cache>
+</webscript>

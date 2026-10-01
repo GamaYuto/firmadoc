@@ -81,3 +81,4 @@ export function getStatusLabel(status) {
   const normalized = normalizeStatus(status);
   return STATUS_LABELS[normalized] || String(status || "Estado desconocido").replaceAll("_", " ");
 }
+

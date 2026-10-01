@@ -1,5 +1,6 @@
 # Variables de entorno
 .env
+.env.lab
 *.env
 !.env.example
 

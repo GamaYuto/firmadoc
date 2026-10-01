@@ -1,0 +1,85 @@
+name: firmadoc-lab
+
+services:
+  firmadoc-db:
+    image: postgres:17
+    container_name: firmadoc-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB through .env.lab}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER through .env.lab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD through .env.lab}
+    volumes:
+      - firmadoc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+    networks:
+      - firmadoc_internal
+
+  firmadoc-backend:
+    image: firmadoc-backend:lab
+    container_name: firmadoc-backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.lab
+    volumes:
+      - type: volume
+        source: firmadoc_artifacts
+        target: /tmp/firmadoc
+      - type: bind
+        source: ./certs/clinica-caribe-lab-ca.crt
+        target: /etc/firmadoc/certs/clinica-caribe-lab-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./secrets/lblanco_signature.jpg
+        target: /etc/firmadoc/secrets/lblanco_signature.jpg
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      firmadoc-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=docker-compose_default"
+      - "traefik.http.routers.firmadoc.rule=Host(`firmadoc-lab.test`)"
+      - "traefik.http.routers.firmadoc.entrypoints=websecure"
+      - "traefik.http.routers.firmadoc.tls=true"
+      - "traefik.http.routers.firmadoc.priority=100"
+      - "traefik.http.services.firmadoc.loadbalancer.server.port=8000"
+    networks:
+      firmadoc_internal:
+        gw_priority: 0
+      traefik:
+        gw_priority: 1
+
+networks:
+  firmadoc_internal:
+    name: firmadoc_internal
+    internal: true
+  traefik:
+    external: true
+    name: docker-compose_default
+
+volumes:
+  firmadoc_pgdata:
+    name: firmadoc_pgdata
+  firmadoc_artifacts:
+    name: firmadoc_artifacts

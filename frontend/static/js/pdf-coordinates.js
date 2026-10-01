@@ -170,3 +170,4 @@ function roundPdfRect(rect) {
 function round4(value) {
   return Number(Number(value).toFixed(4));
 }
+

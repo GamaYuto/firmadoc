@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>FirmaDoc | Iniciar Firma</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css?v=13.7">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=14.0">
   </head>
   <body>
     <header class="app-header">
@@ -17,7 +17,7 @@
         <span id="docName">Documento</span>
         <span id="docVersion" class="status-pill">Version</span>
         <span class="status-pill lab-mode">MODO LABORATORIO</span>
-        <label>Usuario Autenticado <input data-user-input type="text" autocomplete="off" value="admin"></label>
+
       </div>
     </header>
 
@@ -90,19 +90,20 @@
     <div id="activeProcessModal" class="modal-backdrop-custom" role="dialog" aria-modal="true" aria-labelledby="activeProcessTitle" hidden>
       <div class="modal-dialog-custom">
         <div class="modal-header-custom">
-          <h3 id="activeProcessTitle">Proceso pendiente</h3>
+          <h3 id="activeProcessTitle">Proceso de firma en curso</h3>
           <button id="closeActiveProcessModal" class="btn-close-custom" type="button" aria-label="Cerrar">&times;</button>
         </div>
         <div class="modal-body-custom">
-          <p id="activeProcessDescription">Este documento ya tiene un proceso activo. Puede retomarlo sin perder el trabajo realizado.</p>
+          <p id="activeProcessDescription">Ya existe un proceso de firma en curso para este documento.</p>
           <dl>
             <dt>Estado</dt>
             <dd id="activeProcessStatus"></dd>
           </dl>
         </div>
         <div class="modal-footer-custom">
-          <button id="continueActiveProcess" class="btn btn-primary" type="button">Continuar proceso anterior</button>
-          <button id="replaceActiveProcess" class="btn btn-danger" type="button">Cancelar anterior y continuar</button>
+          <button id="continueActiveProcess" class="btn btn-primary" type="button">Continuar proceso</button>
+          <button id="replaceActiveProcess" class="btn btn-danger" type="button">Cancelar proceso anterior</button>
+          <button id="dismissActiveProcess" class="btn btn-secondary" type="button">Regresar</button>
         </div>
       </div>
     </div>
@@ -129,7 +130,7 @@
     </div>
 
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
-    <script type="module" src="/static/js/iniciar.js?v=13.8"></script>
+    <script type="module" src="/static/js/iniciar.js?v=14.0"></script>
   </body>
 </html>
 

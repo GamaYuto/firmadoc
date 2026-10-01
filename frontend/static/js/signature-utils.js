@@ -12,3 +12,4 @@ export function pngDataUrlBinarySize(dataUrl) {
 export function isPngDataUrlWithinLimit(dataUrl, maxBytes) {
   return pngDataUrlBinarySize(dataUrl) <= Number(maxBytes || 0);
 }
+

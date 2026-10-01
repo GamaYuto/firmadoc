@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.crud.crud_audifir import create_evento_tx
-from app.crud.crud_docfir import create_documento, get_active_by_node_version
+from app.crud.crud_docfir import create_documento, get_active_by_node_version, get_active_by_node, build_active_process_detail
 from app.crud.crud_docfirma import crud_docfirma
 from app.models.docfir import DocFir, EstadoDoc
 from app.models.docfirma import DocFirma, EstadoDocFirma, TipoFirma
@@ -185,37 +185,37 @@ class ManagerApprovalService:
             if metadata.mime_type != "application/pdf":
                 raise HTTPException(status_code=415, detail="El documento no es un PDF")
             version = metadata.version_label or "1.0"
-            existing = get_active_by_node_version(db, str(node_id), version)
+            existing = get_active_by_node(db, str(node_id))
             if existing:
-                latest = db.scalar(
-                    select(DocFirma)
-                    .where(DocFirma.docid == existing.docid)
-                    .order_by(DocFirma.firid.desc())
-                )
                 raise HTTPException(
                     status_code=409,
-                    detail={
-                        "code": "ACTIVE_PROCESS",
-                        "message": "Ya existe un proceso activo para este documento",
-                        "docid": existing.docid,
-                        "status": existing.estado,
-                        "firid": latest.firid if latest else None,
-                        "signature_status": latest.estado if latest else None,
-                    },
+                    detail=build_active_process_detail(db, existing),
                 )
 
             source_path, size_bytes, source_hash = await self.alfresco_client.download_node_content(node_id)
             page_sizes = self._validate_position(payload, source_path)
             step_definition = self._ensure_flow(db, requester_user)
-            doc = create_documento(
-                db,
-                nodid=str(node_id),
-                docnom=metadata.name,
-                tamano=size_bytes,
-                verini=version,
-                hasori=source_hash.lower(),
-                usrcre=requester_user,
-            )
+            try:
+                doc = create_documento(
+                    db,
+                    nodid=str(node_id),
+                    docnom=metadata.name,
+                    tamano=size_bytes,
+                    verini=version,
+                    hasori=source_hash.lower(),
+                    usrcre=requester_user,
+                )
+            except IntegrityError as exc:
+                db.rollback()
+                existing = get_active_by_node(db, str(node_id))
+                if existing:
+                    detail = build_active_process_detail(db, existing)
+                else:
+                    detail = {
+                        "code": "ACTIVE_PROCESS",
+                        "message": "Ya existe un proceso activo para este documento",
+                    }
+                raise HTTPException(status_code=409, detail=detail) from exc
             doc.fluid = step_definition.fluid
             doc.estado = EstadoDoc.EN_CURSO.value
 

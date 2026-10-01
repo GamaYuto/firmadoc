@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import unicodedata
+
 import hashlib
 import struct
 import zlib
@@ -385,8 +387,8 @@ def test_pdf_gerencia_visual_generada_por_documento(db_session, tmp_path):
     try:
         assert artifact_a.sha256 != artifact_b.sha256
         with fitz.open(artifact_a.path) as doc_a, fitz.open(artifact_b.path) as doc_b:
-            text_a = doc_a[0].get_text()
-            text_b = doc_b[0].get_text()
+            text_a = unicodedata.normalize("NFKD", doc_a[0].get_text())
+            text_b = unicodedata.normalize("NFKD", doc_b[0].get_text())
         assert str(context_a["opeid"]).replace("-", "")[:12] in text_a
         assert str(context_b["opeid"]).replace("-", "")[:12] in text_b
         assert str(context_a["opeid"]).replace("-", "")[:12] not in text_b

@@ -1,6 +1,5 @@
 import {
   apiFetch,
-  setSessionUser,
   showAlert,
   setBusy,
 } from "./api.js?v=12.1";
@@ -125,7 +124,7 @@ quickLoginBtn.addEventListener("click", async () => {
   }
   try {
     setBusy(quickLoginBtn, true, "Validando");
-    await setSessionUser(user);
+    
     await loadSession();
   } catch (error) {
     showUiError(alerts, error);
@@ -139,3 +138,4 @@ mobileUserInput.addEventListener("keydown", (event) => {
 });
 
 loadSession().catch((error) => showUiError(alerts, error, { onRetry: loadSession }));
+

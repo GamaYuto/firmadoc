@@ -26,8 +26,9 @@ function isMobileLayout() {
 }
 
 function setUserHeader(userId) {
-  const cleanUser = (userId || "").trim();
-  userInput.value = cleanUser || "No autenticado";
+  const cleanUser = String(userId || "").trim();
+  if (userInput) userInput.value = cleanUser;
+  if (authenticationUser) authenticationUser.value = cleanUser;
 }
 
 function disableApprovalActions() {
@@ -81,7 +82,7 @@ async function loadManagerRequest() {
   } catch (error) {
     if (error?.status === 401) {
       await requestAuthentication({
-        suggestedUser: (await getCurrentSession())?.user_id || "",
+        suggestedUser: (await getCurrentSession())?.user_id || initialParams.get("user") || "",
         retryAction: () => loadManagerRequest(),
       });
       return;
@@ -167,11 +168,10 @@ async function init() {
 
   const requestedUser = initialParams.get("user");
   const session = await getCurrentSession();
-  if (requestedUser) {
-    await setSessionUser(requestedUser);
-    setUserHeader(requestedUser);
-  } else if (session?.user_id) {
+  if (session?.user_id) {
     setUserHeader(session.user_id);
+  } else if (requestedUser) {
+    setUserHeader(requestedUser);
   } else {
     setUserHeader("No autenticado");
     await requestAuthentication({
@@ -284,5 +284,3 @@ function showCompleted(message) {
 window.addEventListener("beforeunload", () => {
   if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
 });
-
-

@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     FIRMADOC_GERENCIA_USER_ID: Optional[str] = None
     FIRMADOC_GERENCIA_CARGO: str = "Gerencia"
     FIRMADOC_GERENCIA_TOKEN_EXPIRE_MINUTES: int = 1440
+    FIRMADOC_SSO_ENABLED: bool = False
+    FIRMADOC_SSO_ISSUER: str = "alfresco-share"
+    FIRMADOC_SSO_AUDIENCE: str = "firmadoc"
+    FIRMADOC_SSO_SECRET: Optional[str] = None
+    FIRMADOC_SSO_MAX_AGE_SECONDS: int = 60
+    FIRMADOC_SSO_CLOCK_SKEW_SECONDS: int = 60
 
     FIRMADOC_MAX_PDF_SIZE: int = 52428800
     FIRMADOC_MAX_PDF_PAGES: int = 500
@@ -45,10 +51,10 @@ class Settings(BaseSettings):
     FIRMADOC_TMP_DIR: str = "tmp/firmadoc"
     FIRMADOC_ALLOWED_RETURN_ORIGINS: str = "http://192.168.0.10,https://alfresco-lab.test"
 
-    SECRET_KEY: str = "firmadoc-lab-secret-key-2026-unbreakable"
+    SECRET_KEY: str
     FIRMADOC_SESSION_COOKIE_NAME: str = "firmadoc_session"
     FIRMADOC_SESSION_EXPIRE_MINUTES: int = 480
-    FIRMADOC_SESSION_COOKIE_SECURE: bool = False
+    FIRMADOC_SESSION_COOKIE_SECURE: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -68,6 +74,12 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "SECRET_KEY obligatoria, segura (>= 32 caracteres) y no por defecto cuando FIRMADOC_LAB_IDENTITY_ENABLED=False"
                 )
+
+        if self.FIRMADOC_SSO_ENABLED:
+            secret = (self.FIRMADOC_SSO_SECRET or "").strip()
+            if not secret or len(secret.encode("utf-8")) < 32:
+                raise ValueError("FIRMADOC_SSO_SECRET obligatorio y con al menos 32 bytes de entropía efectiva cuando SSO está habilitado")
+
         return self
 
 settings = Settings()

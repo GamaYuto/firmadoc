@@ -1,13 +1,20 @@
-import { apiFetch, apiFetchBinary, escapeText, setSessionUser, showAlert, setBusy } from "./api.js?v=12.1";
+function isActiveProcessConflict(error) {
+  if (error?.status !== 409) return false;
+  if (error?.code === "ACTIVE_PROCESS" || error?.detail?.code === "ACTIVE_PROCESS") return true;
+  const msg = String(error?.detail?.message || error?.detail || error?.message || "").toLowerCase();
+  return msg.includes("proceso activo");
+}
+
+import { apiFetch, apiFetchBinary, escapeText, showAlert, setBusy } from "./api.js?v=12.1";
 import { PdfViewer } from "./pdf-viewer.js";
 import { clearFeedback, showUiError } from "./ui-feedback.js?v=12.1";
+import { buildSignatureRedirectUrl } from "./signature-navigation.js";
 
 const params = new URLSearchParams(window.location.search);
 const nodeId = params.get("nodeId");
 const returnUrl = params.get("returnUrl");
 
 const alertBox = document.querySelector("#alerts");
-const userInput = document.querySelector("[data-user-input]");
 const docName = document.querySelector("#docName");
 const docVersion = document.querySelector("#docVersion");
 const pageStatus = document.querySelector("#pageStatus");
@@ -25,6 +32,7 @@ const activeProcessDescription = document.querySelector("#activeProcessDescripti
 const closeActiveProcessModalBtn = document.querySelector("#closeActiveProcessModal");
 const continueActiveProcessBtn = document.querySelector("#continueActiveProcess");
 const replaceActiveProcessBtn = document.querySelector("#replaceActiveProcess");
+const dismissActiveProcessBtn = document.querySelector("#dismissActiveProcess");
 const managerRequestModal = document.querySelector("#managerRequestModal");
 const managerApprovalLink = document.querySelector("#managerApprovalLink");
 const managerRequestStatus = document.querySelector("#managerRequestStatus");
@@ -48,15 +56,6 @@ init().catch((error) => showUiError(alertBox, error, { onRetry: () => window.loc
 
 async function init() {
   if (!nodeId) throw new Error("Se requiere nodeId en la URL");
-  const user = params.get("user") || "admin";
-  
-  if (userInput) {
-    userInput.value = user;
-    userInput.addEventListener("change", async () => {
-      await setSessionUser(userInput.value.trim());
-    });
-  }
-  await setSessionUser(user);
 
   viewer = new PdfViewer({
     container: document.querySelector("#pdfContainer"),
@@ -70,7 +69,7 @@ async function init() {
     }
   });
   
-  viewer.setSigner(user);
+  viewer.setSigner("yo");
 
   bindControls();
   await loadDocumentInfo();
@@ -104,7 +103,7 @@ function bindControls() {
         viewer.setSigner("gerencia");
       } else {
         viewer.setMode("MANUSCRITA");
-        viewer.setSigner(e.target.value === "otro" ? "" : userInput.value.trim());
+        viewer.setSigner(e.target.value === "otro" ? "" : "yo");
       }
       updateWorkflowSteps();
     });
@@ -140,6 +139,7 @@ function bindControls() {
   closeActiveProcessModalBtn.addEventListener("click", closeActiveProcessModal);
   continueActiveProcessBtn.addEventListener("click", continueActiveProcess);
   replaceActiveProcessBtn.addEventListener("click", replaceActiveProcess);
+  dismissActiveProcessBtn?.addEventListener("click", closeActiveProcessModal);
   closeManagerRequestModalBtn.addEventListener("click", closeManagerRequestModal);
   closeManagerRequestActionBtn.addEventListener("click", closeManagerRequestModal);
   copyManagerApprovalLinkBtn.addEventListener("click", copyManagerApprovalLink);
@@ -274,8 +274,8 @@ async function startManagerApproval(payload) {
     copyManagerApprovalLinkBtn.focus();
     startManagerStatusPolling();
   } catch (error) {
-    if (error.status === 409 && error.code === "ACTIVE_PROCESS") {
-      activeProcess = error.detail;
+    if (isActiveProcessConflict(error)) {
+      activeProcess = (typeof error?.detail === "object" && error.detail !== null) ? error.detail : {};
       pendingStartPayload = payload;
       pendingStartFlow = "manager";
       activeProcessStatus.textContent = activeProcess.status || "ACTIVO";
@@ -284,7 +284,7 @@ async function startManagerApproval(payload) {
       continueActiveProcessBtn.focus();
       return;
     }
-    showUiError(alertBox, error, { onRetry: () => startManagerApproval(payload) });
+    showUiError(alertBox, error, { onRetry: error.status === 409 ? null : () => startManagerApproval(payload) });
   } finally {
     setBusy(confirmPositionBtn, false);
   }
@@ -440,8 +440,8 @@ async function startSignature(payload) {
     });
     await redirectToSignature(response.firid, true);
   } catch (error) {
-    if (error.status === 409 && error.code === "ACTIVE_PROCESS") {
-      activeProcess = error.detail;
+    if (isActiveProcessConflict(error)) {
+      activeProcess = (typeof error?.detail === "object" && error.detail !== null) ? error.detail : {};
       pendingStartPayload = payload;
       pendingStartFlow = "signature";
       activeProcessStatus.textContent = activeProcess.status || "ACTIVO";
@@ -450,28 +450,25 @@ async function startSignature(payload) {
       continueActiveProcessBtn.focus();
       return;
     }
-    showUiError(alertBox, error, { onRetry: () => startSignature(payload) });
+    showUiError(alertBox, error, { onRetry: error.status === 409 ? null : () => startSignature(payload) });
   } finally {
     setBusy(confirmPositionBtn, false);
   }
 }
 
 async function redirectToSignature(firid, autoQr) {
-  let redirectUrl = "/firmas/" + firid + "?user=" + encodeURIComponent(userInput.value.trim());
-  if (autoQr) {
-    redirectUrl += "&autoQr=true";
-  }
+  let validatedReturnUrl = "";
   if (returnUrl) {
     try {
       const validation = await apiFetch("/api/firma/validate-return-url?url=" + encodeURIComponent(returnUrl));
       if (validation.url) {
-        redirectUrl += "&returnUrl=" + encodeURIComponent(validation.url);
+        validatedReturnUrl = validation.url;
       }
     } catch (error) {
       console.warn("No fue posible validar returnUrl:", error);
     }
   }
-  window.location.href = redirectUrl;
+  window.location.href = buildSignatureRedirectUrl(firid, { autoQr, returnUrl: validatedReturnUrl });
 }
 
 function closeActiveProcessModal() {
@@ -485,22 +482,61 @@ async function continueActiveProcess() {
     resetActiveProcessDialog();
     return;
   }
-  if (!activeProcess?.firid) {
-    showAlert(alertBox, "danger", "El proceso anterior no tiene una firma disponible para continuar");
+  if (!activeProcess) return;
+
+  if (!activeProcess.docid && !activeProcess.firid && nodeId) {
+    try {
+      const list = await apiFetch(`/api/documentos?nodid=${encodeURIComponent(nodeId)}&activo=true`);
+      if (list?.items?.length) {
+        activeProcess.docid = list.items[0].docid;
+        activeProcess.status = list.items[0].estado || activeProcess.status;
+      }
+    } catch (e) {
+      console.warn("No se pudo obtener docid del proceso activo:", e);
+    }
+  }
+
+  if (activeProcess.firid) {
+    const autoQr = ["INICIADA", "GENERADA"].includes(activeProcess.signature_status);
+    await redirectToSignature(activeProcess.firid, autoQr);
     return;
   }
-  const autoQr = ["INICIADA", "GENERADA"].includes(activeProcess.signature_status);
-  await redirectToSignature(activeProcess.firid, autoQr);
+
+  if (activeProcess.docid) {
+    window.location.href = `/documentos/preparar?nodeId=${encodeURIComponent(nodeId)}`;
+    return;
+  }
+
+  showAlert(alertBox, "warning", "No hay una firma activa que reanudar en este proceso.");
 }
 
 async function replaceActiveProcess() {
-  if (!activeProcess?.docid || !pendingStartPayload) return;
+  if (!activeProcess?.docid && nodeId) {
+    try {
+      const list = await apiFetch(`/api/documentos?nodid=${encodeURIComponent(nodeId)}&activo=true`);
+      if (list?.items?.length) {
+        activeProcess.docid = list.items[0].docid;
+        activeProcess.status = list.items[0].estado || activeProcess.status;
+      }
+    } catch (e) {
+      console.warn("No se pudo obtener docid del proceso activo:", e);
+    }
+  }
+
+  if (!activeProcess?.docid) {
+    showAlert(alertBox, "danger", "No se pudo identificar el proceso a cancelar.");
+    return;
+  }
 
   if (!cancellationConfirmPending) {
     cancellationConfirmPending = true;
-    activeProcessDescription.textContent = "Al cancelar se descartara el proceso anterior y no podra publicarse. Confirme solo si desea comenzar de nuevo.";
+    const title = document.querySelector("#activeProcessTitle");
+    if (title) title.textContent = "¿Cancelar el proceso de firma en curso?";
+    activeProcessDescription.textContent = "Esta acción descartará la preparación pendiente, pero no modificará el PDF original en Alfresco.";
+    continueActiveProcessBtn.hidden = false;
     continueActiveProcessBtn.textContent = "No, conservar proceso";
-    replaceActiveProcessBtn.textContent = "Confirmar cancelacion";
+    replaceActiveProcessBtn.textContent = "Sí, cancelar proceso";
+    if (dismissActiveProcessBtn) dismissActiveProcessBtn.hidden = true;
     return;
   }
 
@@ -518,9 +554,11 @@ async function replaceActiveProcess() {
     activeProcess = null;
     pendingStartPayload = null;
     pendingStartFlow = null;
+    showAlert(alertBox, "success", "Proceso anterior cancelado.");
+    confirmPositionBtn.disabled = !currentPosition;
     if (flow === "manager") {
       await startManagerApproval(payload);
-    } else {
+    } else if (payload) {
       await startSignature(payload);
     }
   } catch (error) {
@@ -528,7 +566,7 @@ async function replaceActiveProcess() {
     showUiError(alertBox, error, { onRetry: loadDocumentInfo });
   } finally {
     setBusy(replaceActiveProcessBtn, false);
-    if (activeProcessModal.hidden) resetActiveProcessDialog();
+    resetActiveProcessDialog();
   }
 }
 

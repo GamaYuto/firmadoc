@@ -1,7 +1,6 @@
 import {
   apiFetch,
   getCurrentSession,
-  setSessionUser,
   showAlert,
   escapeText,
 } from "./api.js";
@@ -41,17 +40,17 @@ function formatDate(dateStr) {
 async function initUser() {
   const session = await getCurrentSession();
   if (session && session.user_id) {
-    userInput.value = session.user_id;
+    
   } else {
-    await setSessionUser("preparador");
-    userInput.value = "preparador";
+    
+    
   }
 
   userInput.addEventListener("change", async () => {
-    const val = userInput.value.trim();
+    const val = "";
     if (!val) return;
     try {
-      await setSessionUser(val);
+      
       showAlert(alerts, "success", `Sesión activa como: ${val}`);
       await loadFolder(currentFolderId);
     } catch (err) {
@@ -188,3 +187,4 @@ async function boot() {
 }
 
 boot();
+

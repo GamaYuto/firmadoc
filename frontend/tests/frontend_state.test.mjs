@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { ApiError, setBusy } from "../static/js/api.js";
+import { ApiError, apiFetch, setBusy, setSessionUser } from "../static/js/api.js";
 import { buildDraftPayload, hasDirtyState } from "../static/js/preparation-state.js";
 import { RenderSequencer } from "../static/js/render-sequencer.js";
 import { isPngDataUrlWithinLimit, pngDataUrlBinarySize } from "../static/js/signature-utils.js";
@@ -20,6 +20,7 @@ import {
 } from "../static/js/workflow-state.js";
 import { describeUiError } from "../static/js/ui-feedback.js";
 import { consumeApprovalToken } from "../static/js/manager-approval-token.js";
+import { buildSignatureRedirectUrl } from "../static/js/signature-navigation.js";
 
 test("buildDraftPayload conserva propiedades individuales", () => {
   const payload = buildDraftPayload([
@@ -154,6 +155,45 @@ test("ApiError conserva codigo y referencia de operacion", () => {
   assert.equal(error.operationId, "op-123");
 });
 
+test("setSessionUser solo cambia identidad tras una seleccion explicita", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestDetails;
+  globalThis.fetch = async (url, options) => {
+    requestDetails = { url, options };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ user_id: "pdaza", csrf_token: "csrf-test" }),
+    };
+  };
+
+  try {
+    const session = await setSessionUser("pdaza");
+    assert.equal(session.user_id, "pdaza");
+    assert.equal(requestDetails.url, "/api/auth/session");
+    assert.equal(requestDetails.options.method, "POST");
+    assert.deepEqual(JSON.parse(requestDetails.options.body), { user_id: "pdaza" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("ApiError genera el codigo HTTP con interpolacion correcta", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 422,
+    statusText: "Unprocessable Entity",
+    json: async () => ({}),
+  });
+
+  try {
+    await assert.rejects(apiFetch("/fallo"), (error) => error.code === "HTTP_422");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("setBusy restaura el estado deshabilitado original", () => {
   const button = { disabled: true, textContent: "Publicar", dataset: {} };
   setBusy(button, true, "Publicando");
@@ -220,6 +260,44 @@ test("conflicto activo de Gerencia conserva payload para cancelar y recrear", ()
   assert.match(iniciarSource, /if \(flow === "manager"\) \{[\s\S]*?await startManagerApproval\(payload\);/);
 });
 
+test("/iniciar no consulta ni cambia identidad LAB al cargar", () => {
+  const source = fs.readFileSync(path.join("static", "js", "iniciar.js"), "utf8");
+  assert.doesNotMatch(source, /getCurrentSession|setSessionUser|\/api\/auth\/session/);
+});
+
+test("firmante yo se conserva y otro queda pendiente de seleccion", () => {
+  const source = fs.readFileSync(path.join("static", "js", "iniciar.js"), "utf8");
+  assert.match(source, /viewer\.setSigner\(e\.target\.value === "otro" \? "" : "yo"\)/);
+});
+
+test("redireccion a firma construye ambas variantes de autoQr con returnUrl", () => {
+  const returnUrl = "https://alfresco.example/share/page/document-details?nodeRef=abc&view=1";
+  const encodedReturnUrl = encodeURIComponent(returnUrl);
+  assert.equal(
+    buildSignatureRedirectUrl(42, { autoQr: true, returnUrl }),
+    `/firmas/42?autoQr=true&returnUrl=${encodedReturnUrl}`,
+  );
+  assert.equal(
+    buildSignatureRedirectUrl(42, { autoQr: false, returnUrl }),
+    `/firmas/42?returnUrl=${encodedReturnUrl}`,
+  );
+});
+
+test("redirectToSignature usa el destino construido con returnUrl validada", () => {
+  const source = fs.readFileSync(path.join("static", "js", "iniciar.js"), "utf8");
+  assert.match(source, /buildSignatureRedirectUrl\(firid, \{ autoQr, returnUrl: validatedReturnUrl \}\)/);
+});
+
+test("modal solicita cambio explicito de identidad LAB", () => {
+  const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
+  const setUserHeader = source.match(/function setUserHeader\(userId\)\s*\{[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(source, /await setSessionUser\(userId\)/);
+  assert.match(setUserHeader, /authenticationUser\.value = cleanUser;/);
+  assert.doesNotMatch(setUserHeader, /setSessionUser/);
+  assert.doesNotMatch(source, /setSessionUser\(requestedUser\)/);
+  assert.match(source, /suggestedUser: \(await getCurrentSession\(\)\)\?\.user_id \|\| initialParams\.get\("user"\) \|\| ""/);
+});
+
 
 test("Gerencia autorizada oculta acciones y carga PDF firmado", () => {
   const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
@@ -257,4 +335,24 @@ test("Gerencia mantiene scroll interno del documento y zoom visible", () => {
   assert.match(css, /\.manager-approval-layout \.viewer-column\s*\{[\s\S]*?overflow: hidden;/);
   assert.match(css, /\.manager-approval-layout \.pdf-scroll\s*\{[\s\S]*?overflow: auto;[\s\S]*?overscroll-behavior: contain;/);
   assert.match(css, /\.manager-approval-layout \.viewer-toolbar label\s*\{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: auto minmax\(96px, 1fr\);/);
+});
+
+test("PdfViewer define clearPositions que limpia posiciones y seleccion", () => {
+  const source = fs.readFileSync(path.join("static", "js", "pdf-viewer.js"), "utf8");
+  assert.match(source, /clearPositions\(\)\s*\{[\s\S]*?this\.positions\s*=\s*\[\];[\s\S]*?this\.selectedId\s*=\s*null;/);
+});
+
+test("iniciar.js gestiona conflicto 409 con modal continuar/cancelar y sin reintento automatico", () => {
+  const iniciarJs = fs.readFileSync(path.join("static", "js", "iniciar.js"), "utf8");
+  const iniciarHtml = fs.readFileSync(path.join("..", "frontend", "templates", "iniciar.html"), "utf8");
+
+  // Botones y confirmacion esperada
+  assert.match(iniciarHtml, /id="continueActiveProcess"[\s\S]*?>Continuar proceso</);
+  assert.match(iniciarHtml, /id="replaceActiveProcess"[\s\S]*?>Cancelar proceso anterior</);
+  assert.match(iniciarHtml, /id="dismissActiveProcess"[\s\S]*?>Regresar</);
+  assert.match(iniciarJs, /¿Cancelar el proceso de firma en curso\?/);
+  assert.match(iniciarJs, /Esta acción descartará la preparación pendiente, pero no modificará el PDF original en Alfresco\./);
+
+  // No reintenta en 409
+  assert.match(iniciarJs, /onRetry:\s*error\.status === 409 \? null :/);
 });
