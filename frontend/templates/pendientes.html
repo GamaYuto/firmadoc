@@ -1,38 +1,82 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="h-100">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FirmaDoc | Pendientes</title>
+    <title>FirmaDoc | Pendientes — Clínica del Caribe</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css?v=12.1">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=15.0">
+    <link rel="stylesheet" href="/static/css/firmadoc-theme.css?v=15.0">
   </head>
-  <body>
+  <body class="d-flex flex-column h-100">
+    <!-- BEGIN: Header Institucional -->
     <header class="app-header">
       <div class="brand-block">
-        <div class="brand">FirmaDoc</div>
-        <span class="brand-context">Bandeja de trabajo</span>
+        <div class="brand-institution">
+          <span class="brand-institution-text">Clínica del Caribe</span>
+        </div>
+        <div class="brand-divider" aria-hidden="true"></div>
+        <div class="brand">
+          <span class="brand-name">Firma<span class="brand-accent">Doc</span></span>
+          <span class="brand-context">| Bandeja de trabajo</span>
+        </div>
       </div>
-      <div class="header-meta">
-        <span class="status-pill lab-mode">MODO LABORATORIO</span>
-
-        <button id="refreshButton" class="btn" type="button">Actualizar</button>
+      <div class="header-right-area">
+        <a class="btn-return py-1 px-3" href="/documentos">
+          <span>Explorar Alfresco</span>
+        </a>
+        <div class="badge-lab-mode status-pill lab-mode">
+          <span class="dot"></span>
+          <span>Modo Laboratorio</span>
+        </div>
+        <button id="refreshButton" class="btn-header-action" type="button">Actualizar</button>
       </div>
     </header>
+    <!-- END: Header Institucional -->
 
-    <main class="list-workspace">
-      <div class="list-heading">
+    <!-- BEGIN: Main List -->
+    <main class="list-workspace flex-grow-1 p-4" style="max-width:1200px;margin:0 auto;width:100%;">
+      <div class="list-heading mb-4">
         <div>
           <span class="section-kicker">FirmaDoc</span>
-          <h1>Firmas pendientes</h1>
+          <h1 class="h4 fw-bold text-primary mb-1">Firmas pendientes</h1>
         </div>
-        <p>Documentos que requieren una accion del usuario actual.</p>
+        <p class="text-muted small mb-0">Documentos que requieren una acción del usuario actual.</p>
       </div>
       <div id="alerts" aria-live="polite"></div>
       <section id="pendingList" class="pending-list" aria-label="Pendientes de firma"></section>
     </main>
+    <!-- END: Main List -->
+
+    <!-- BEGIN: Footer Corporativo -->
+    <footer class="corporate-footer">
+      <div class="footer-pillars">
+        <div class="footer-pillar">
+          <span class="pillar-dot cyan"></span>
+          <span><strong>Seguro:</strong> Protección y trazabilidad institucional</span>
+        </div>
+        <div class="footer-pillar d-none d-sm-flex">
+          <span class="pillar-dot blue"></span>
+          <span><strong>Simple:</strong> Flujos de firma claros e intuitivos</span>
+        </div>
+        <div class="footer-pillar d-none d-md-flex">
+          <span class="pillar-dot green"></span>
+          <span><strong>Confiable:</strong> Respaldado por Clínica del Caribe</span>
+        </div>
+        <div class="footer-pillar d-none d-lg-flex">
+          <span class="pillar-dot cyan"></span>
+          <span><strong>Humano:</strong> Tecnología al servicio de las personas</span>
+        </div>
+      </div>
+      <div class="footer-brand-text">
+        <span>FirmaDoc · Gestión documental segura</span>
+        <span>•</span>
+        <span class="corp-name">Clínica del Caribe</span>
+      </div>
+    </footer>
+    <!-- END: Footer Corporativo -->
 
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
-    <script type="module" src="/static/js/pendientes.js?v=12.1"></script>
+    <script type="module" src="/static/js/pendientes.js?v=15.0"></script>
   </body>
 </html>
