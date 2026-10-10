@@ -1,15 +1,16 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="h-100">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FirmaDoc | Documentos Alfresco</title>
+    <title>FirmaDoc | Documentos Alfresco — Clínica del Caribe</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=15.0">
+    <link rel="stylesheet" href="/static/css/firmadoc-theme.css?v=15.0">
     <style>
       .explorer-container {
         max-width: 1200px;
-        margin: 2rem auto;
+        margin: 1.5rem auto;
         padding: 0 1.5rem;
       }
       .search-box {
@@ -19,9 +20,15 @@
       }
       .search-box input {
         flex: 1;
-        padding: 0.6rem 1rem;
-        border-radius: 6px;
-        border: 1px solid #ced4da;
+        padding: 0.625rem 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--cdc-slate-200);
+        font-size: 0.8125rem;
+      }
+      .search-box input:focus {
+        border-color: var(--cdc-cyan);
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(0, 175, 239, 0.2);
       }
       .folder-grid {
         display: grid;
@@ -33,67 +40,98 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
-        padding: 1rem;
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
+        padding: 0.875rem 1rem;
+        background: var(--cdc-white);
+        border: 1px solid var(--cdc-slate-200);
+        border-radius: 0.75rem;
         cursor: pointer;
         transition: all 0.15s ease;
+        box-shadow: var(--cdc-shadow-subtle);
       }
       .folder-card:hover {
-        background: #e2e6ea;
-        border-color: #0d6efd;
+        background: var(--cdc-cyan-light);
+        border-color: var(--cdc-cyan);
+        transform: translateY(-1px);
       }
       .folder-icon {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
       }
       .table-docs {
-        background: #fff;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        background: var(--cdc-white);
+        border-radius: 0.75rem;
+        box-shadow: var(--cdc-shadow-subtle);
+        border: 1px solid var(--cdc-slate-200);
+        overflow: hidden;
+      }
+      .table-docs thead th {
+        background: var(--cdc-slate-50);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--cdc-slate-600);
+        letter-spacing: 0.03em;
+        border-bottom: 1px solid var(--cdc-slate-200);
       }
     </style>
   </head>
-  <body>
+  <body class="d-flex flex-column h-100">
+    <!-- BEGIN: Header Institucional -->
     <header class="app-header">
-      <div class="brand">FirmaDoc</div>
-      <div class="header-meta">
-        <a class="btn btn-outline-light btn-sm" href="/pendientes">Mis Pendientes</a>
-        <span class="status-pill lab-mode">MODO LABORATORIO</span>
-
-        <button id="refreshButton" class="btn" type="button">Actualizar</button>
+      <div class="brand-block">
+        <div class="brand-institution">
+          <span class="brand-institution-text">Clínica del Caribe</span>
+        </div>
+        <div class="brand-divider" aria-hidden="true"></div>
+        <div class="brand">
+          <span class="brand-name">Firma<span class="brand-accent">Doc</span></span>
+          <span class="brand-context">| Documentos Alfresco</span>
+        </div>
+      </div>
+      <div class="header-right-area">
+        <a class="btn-return py-1 px-3" href="/pendientes">
+          <span>Mis Pendientes</span>
+        </a>
+        <div class="badge-lab-mode status-pill lab-mode">
+          <span class="dot"></span>
+          <span>Modo Laboratorio</span>
+        </div>
+        <button id="refreshButton" class="btn-header-action" type="button">Actualizar</button>
       </div>
     </header>
+    <!-- END: Header Institucional -->
 
-    <main class="explorer-container">
+    <!-- BEGIN: Main Explorer -->
+    <main class="explorer-container flex-grow-1">
       <div id="alerts" aria-live="polite"></div>
 
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Documentos de Alfresco</h2>
-        <span id="currentPathText" class="text-muted small">Cargando ubicación...</span>
+        <div>
+          <h2 class="h5 fw-bold text-primary mb-0">Explorador de Alfresco</h2>
+          <span id="currentPathText" class="text-muted small">Cargando ubicación...</span>
+        </div>
       </div>
 
       <form id="searchForm" class="search-box">
         <input id="searchInput" type="text" placeholder="Buscar documento PDF por nombre en Alfresco..." autocomplete="off">
-        <button type="submit" class="btn btn-primary">Buscar</button>
-        <button id="clearSearchButton" type="button" class="btn btn-secondary" hidden>Limpiar</button>
+        <button type="submit" class="btn btn-primary px-3 fw-bold">Buscar</button>
+        <button id="clearSearchButton" type="button" class="btn btn-secondary px-3" hidden>Limpiar</button>
       </form>
 
       <section id="foldersSection" class="mb-4">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <h4 class="h5 mb-0">Carpetas</h4>
+          <h4 class="h6 fw-bold text-slate-800 mb-0">Carpetas</h4>
           <button id="upFolderButton" type="button" class="btn btn-outline-secondary btn-sm" hidden>Subir nivel</button>
         </div>
         <div id="folderList" class="folder-grid">
-          <p class="text-muted">Cargando carpetas...</p>
+          <p class="text-muted small">Cargando carpetas...</p>
         </div>
       </section>
 
       <section id="documentsSection">
-        <h4 class="h5 mb-2">Documentos PDF</h4>
+        <h4 class="h6 fw-bold text-slate-800 mb-2">Documentos PDF</h4>
         <div class="table-responsive table-docs">
           <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
+            <thead>
               <tr>
                 <th>Nombre</th>
                 <th>Versión</th>
@@ -104,15 +142,44 @@
             </thead>
             <tbody id="documentList">
               <tr>
-                <td colspan="5" class="text-center py-4 text-muted">Cargando documentos...</td>
+                <td colspan="5" class="text-center py-4 text-muted small">Cargando documentos...</td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
     </main>
+    <!-- END: Main Explorer -->
+
+    <!-- BEGIN: Footer Corporativo -->
+    <footer class="corporate-footer">
+      <div class="footer-pillars">
+        <div class="footer-pillar">
+          <span class="pillar-dot cyan"></span>
+          <span><strong>Seguro:</strong> Protección y trazabilidad institucional</span>
+        </div>
+        <div class="footer-pillar d-none d-sm-flex">
+          <span class="pillar-dot blue"></span>
+          <span><strong>Simple:</strong> Flujos de firma claros e intuitivos</span>
+        </div>
+        <div class="footer-pillar d-none d-md-flex">
+          <span class="pillar-dot green"></span>
+          <span><strong>Confiable:</strong> Respaldado por Clínica del Caribe</span>
+        </div>
+        <div class="footer-pillar d-none d-lg-flex">
+          <span class="pillar-dot cyan"></span>
+          <span><strong>Humano:</strong> Tecnología al servicio de las personas</span>
+        </div>
+      </div>
+      <div class="footer-brand-text">
+        <span>FirmaDoc · Gestión documental segura</span>
+        <span>•</span>
+        <span class="corp-name">Clínica del Caribe</span>
+      </div>
+    </footer>
+    <!-- END: Footer Corporativo -->
 
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
-    <script type="module" src="/static/js/documentos.js"></script>
+    <script type="module" src="/static/js/documentos.js?v=15.0"></script>
   </body>
 </html>
