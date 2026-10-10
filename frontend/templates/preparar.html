@@ -1,79 +1,145 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="h-100">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FirmaDoc | Preparar documento</title>
+    <title>FirmaDoc | Preparar documento — Clínica del Caribe</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=15.0">
+    <link rel="stylesheet" href="/static/css/firmadoc-theme.css?v=15.0">
   </head>
-  <body>
+  <body class="d-flex flex-column h-100">
+    <!-- BEGIN: Header Institucional -->
     <header class="app-header">
-      <div class="brand">FirmaDoc</div>
-      <div class="header-meta">
-        <span id="docName">Documento</span>
-        <span id="docVersion" class="status-pill">Version</span>
-        <span id="docStatus" class="status-pill">Estado</span>
-        <span class="status-pill lab-mode">MODO LABORATORIO</span>
-
+      <div class="brand-block">
+        <div class="brand-institution">
+          <span class="brand-institution-text">Clínica del Caribe</span>
+        </div>
+        <div class="brand-divider" aria-hidden="true"></div>
+        <div class="brand">
+          <span class="brand-name">Firma<span class="brand-accent">Doc</span></span>
+          <span class="brand-context">| Preparar documento</span>
+        </div>
+      </div>
+      <div class="header-context-pill d-none d-md-flex">
+        <svg width="16" height="16" fill="none" stroke="#00AFEF" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        </svg>
+        <span id="docName" class="header-doc-name">Documento</span>
+        <span id="docVersion" class="header-doc-version status-pill">Versión</span>
+        <span id="docStatus" class="header-doc-status status-pill">Estado</span>
+      </div>
+      <div class="header-right-area">
+        <div class="badge-lab-mode status-pill lab-mode">
+          <span class="dot"></span>
+          <span>Modo Laboratorio</span>
+        </div>
       </div>
     </header>
+    <!-- END: Header Institucional -->
 
-    <main class="app-shell">
+    <!-- BEGIN: Main Shell (3 Columnas) -->
+    <main class="app-shell flex-grow-1">
+      <!-- Columna Izquierda: Miniaturas -->
       <aside class="sidebar">
-        <button id="backButton" class="btn" type="button">Regresar</button>
-        <h2>Paginas</h2>
-        <nav id="thumbs" aria-label="Paginas del PDF"></nav>
+        <div class="sidebar-return-area">
+          <button id="backButton" class="btn-return" type="button">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 19l-7-7m0 0l7-7m-7 7h18" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+            </svg>
+            <span>Regresar</span>
+          </button>
+        </div>
+        <div class="sidebar-title-bar">
+          <span>Miniaturas</span>
+          <span class="sidebar-page-count" id="pageCountDisplay">Páginas</span>
+        </div>
+        <nav id="thumbs" class="sidebar-thumbs-container" aria-label="Paginas del PDF"></nav>
       </aside>
 
+      <!-- Columna Central: Visor PDF -->
       <section class="viewer-column" aria-label="Visor PDF">
         <div class="viewer-toolbar">
-          <div id="pageStatus" role="status"></div>
-          <label>Zoom
-            <select id="zoomSelect">
-              <option value="0.75">75%</option>
-              <option value="1" selected>100%</option>
-              <option value="1.5">150%</option>
-            </select>
-          </label>
+          <div class="viewer-pagination">
+            <div id="pageStatus" role="status" class="viewer-page-status">Página 1</div>
+          </div>
+          <div class="viewer-zoom-controls">
+            <label class="m-0 d-flex align-items-center">
+              <span class="small text-muted me-1">Zoom:</span>
+              <select id="zoomSelect" class="viewer-zoom-select" aria-label="Nivel de zoom">
+                <option value="0.75">75%</option>
+                <option value="1" selected>100%</option>
+                <option value="1.5">150%</option>
+              </select>
+            </label>
+          </div>
+          <div class="viewer-doc-info d-none d-md-flex">
+            <svg width="14" height="14" fill="none" stroke="#00AFEF" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+            </svg>
+            <span>Visor PDF · Origen: Gestor Documental Alfresco</span>
+          </div>
         </div>
         <div id="pdfContainer" class="pdf-scroll"></div>
       </section>
 
-      <aside class="config-panel">
+      <!-- Columna Derecha: Configuración -->
+      <aside class="config-panel task-panel">
         <div id="alerts" aria-live="polite"></div>
-        <div class="field">
-          <label for="signatureType">Tipo de firma</label>
-          <select id="signatureType">
-            <option value="MANUSCRITA">Firma manuscrita</option>
-            <option value="INTERNA">Firma interna</option>
-          </select>
+        <div class="wizard-header">
+          <span class="section-kicker">Preparación Avanzada</span>
+          <h1 class="wizard-title">Parámetros del documento</h1>
         </div>
-        <div class="field">
-          <label for="signerUser">Firmante</label>
-          <input id="signerUser" type="text" autocomplete="off" value="firmante">
+        <div class="wizard-body">
+          <div class="field mb-3">
+            <label for="signatureType" class="small fw-semibold mb-1 d-block">Tipo de firma</label>
+            <select id="signatureType" class="form-select form-select-sm">
+              <option value="MANUSCRITA">Firma manuscrita</option>
+              <option value="INTERNA">Firma interna</option>
+            </select>
+          </div>
+          <div class="field mb-3">
+            <label for="signerUser" class="small fw-semibold mb-1 d-block">Firmante</label>
+            <input id="signerUser" type="text" autocomplete="off" value="firmante" class="form-control form-control-sm">
+          </div>
+          <div class="field mb-3">
+            <label for="signerOrder" class="small fw-semibold mb-1 d-block">Orden de firma</label>
+            <input id="signerOrder" type="number" min="1" step="1" value="1" class="form-control form-control-sm">
+          </div>
+          <div class="button-row mb-3">
+            <button id="deletePosition" class="btn btn-outline-danger btn-sm w-100" type="button">Eliminar posición</button>
+          </div>
+          <p id="dirtyStatus" class="dirty-status small text-muted mb-3" role="status">Sin cambios pendientes</p>
+          <section class="properties position-card">
+            <div class="position-card-header">
+              <span class="position-card-title">Posición asignada</span>
+            </div>
+            <div id="positionInfo">
+              <p class="position-card-text">Seleccione o dibuje un rectángulo en el documento.</p>
+            </div>
+          </section>
         </div>
-        <div class="field">
-          <label for="signerOrder">Orden</label>
-          <input id="signerOrder" type="number" min="1" step="1" value="1">
-        </div>
-        <div class="button-row">
-          <button id="deletePosition" class="btn btn-danger" type="button">Eliminar posicion</button>
-        </div>
-        <p id="dirtyStatus" class="dirty-status" role="status">Sin cambios pendientes</p>
-        <section class="properties">
-          <h2>Posicion</h2>
-          <div id="positionInfo"><p>Seleccione o dibuje un rectangulo.</p></div>
-        </section>
-        <div class="button-row">
-          <button id="saveDraft" class="btn btn-primary" type="button">Guardar borrador</button>
-          <button id="sendSignature" class="btn btn-info" type="button">Enviar a firma</button>
-          <button id="saveAndSendSignature" class="btn btn-primary" type="button">Guardar y enviar</button>
+        <div class="button-row panel-actions p-3 border-top border-slate-100 bg-white mt-auto d-flex flex-column gap-2">
+          <button id="saveDraft" class="btn btn-outline-secondary btn-sm w-100" type="button">Guardar borrador</button>
+          <button id="sendSignature" class="btn btn-outline-primary btn-sm w-100" type="button">Enviar a firma</button>
+          <button id="saveAndSendSignature" class="btn-primary-action" type="button">Guardar y enviar</button>
+          <p class="wizard-footer-note">FirmaDoc · Gestión documental segura · Clínica del Caribe</p>
         </div>
       </aside>
     </main>
+    <!-- END: Main Shell -->
+
+    <!-- BEGIN: Footer Corporativo -->
+    <footer class="corporate-footer">
+      <div class="footer-brand-text">
+        <span>FirmaDoc · Gestión documental segura</span>
+        <span>•</span>
+        <span class="corp-name">Clínica del Caribe</span>
+      </div>
+    </footer>
+    <!-- END: Footer Corporativo -->
 
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
-    <script type="module" src="/static/js/preparar.js?v=11.2"></script>
+    <script type="module" src="/static/js/preparar.js?v=15.0"></script>
   </body>
 </html>
