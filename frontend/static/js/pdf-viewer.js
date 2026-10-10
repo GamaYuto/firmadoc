@@ -397,7 +397,7 @@ export class PdfViewer {
           </span>
           ${hasSignature ? '<span class="badge bg-info text-white" style="font-size:0.5625rem;padding:2px 4px;">Firma</span>' : ""}
         </div>
-        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:6px;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+        <div class="thumb-preview-box">
           <div style="height:3px;background:rgba(8,51,123,0.5);border-radius:2px;width:40%;margin-bottom:4px;"></div>
           <div style="height:2px;background:#E2E8F0;border-radius:1px;width:100%;margin-bottom:3px;"></div>
           <div style="height:2px;background:#E2E8F0;border-radius:1px;width:80%;margin-bottom:3px;"></div>
