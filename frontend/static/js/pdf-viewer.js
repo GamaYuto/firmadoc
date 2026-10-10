@@ -379,12 +379,37 @@ export class PdfViewer {
   _renderThumbs() {
     if (!this.thumbs) return;
     this.thumbs.innerHTML = "";
+    const pageCountEl = document.querySelector("#pageCountDisplay");
+    if (pageCountEl) {
+      pageCountEl.textContent = `${this.pages.length} páginas`;
+    }
     for (const page of this.pages) {
+      const hasSignature = this.positions.some((pos) => pos.pagina === page.pageNumber);
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "thumb-button";
-      button.textContent = `Pagina ${page.pageNumber}`;
-      button.addEventListener("click", () => this.scrollToPage(page.pageNumber));
+      button.className = `thumb-button${page.pageNumber === 1 ? " active" : ""}`;
+      button.dataset.page = String(page.pageNumber);
+      button.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between mb-1" style="font-size:0.6875rem;">
+          <span class="d-flex align-items-center gap-1 font-semibold text-primary">
+            <span style="width:6px;height:6px;border-radius:50%;background:#00AFEF;display:inline-block;"></span>
+            Página ${page.pageNumber}
+          </span>
+          ${hasSignature ? '<span class="badge bg-info text-white" style="font-size:0.5625rem;padding:2px 4px;">Firma</span>' : ""}
+        </div>
+        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:6px;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+          <div style="height:3px;background:rgba(8,51,123,0.5);border-radius:2px;width:40%;margin-bottom:4px;"></div>
+          <div style="height:2px;background:#E2E8F0;border-radius:1px;width:100%;margin-bottom:3px;"></div>
+          <div style="height:2px;background:#E2E8F0;border-radius:1px;width:80%;margin-bottom:3px;"></div>
+          <div style="height:2px;background:#E2E8F0;border-radius:1px;width:60%;margin-bottom:3px;"></div>
+          ${hasSignature ? '<div style="margin-top:6px;border:1px dashed #00AFEF;background:#EBF8FE;border-radius:4px;padding:2px;text-align:center;font-size:0.5rem;font-weight:700;color:#08337B;">Firma asignada</div>' : ""}
+        </div>
+      `;
+      button.addEventListener("click", () => {
+        this.thumbs.querySelectorAll(".thumb-button").forEach((b) => b.classList.remove("active"));
+        button.classList.add("active");
+        this.scrollToPage(page.pageNumber);
+      });
       this.thumbs.appendChild(button);
     }
   }
