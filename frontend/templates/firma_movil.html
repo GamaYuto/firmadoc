@@ -2,86 +2,113 @@
 <html lang="es">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FirmaDoc | Firma Movil</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>FirmaDoc | Firma Móvil — Clínica del Caribe</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/firmadoc-theme.css?v=15.0">
     <style>
       body {
-        background-color: #f4f6f9;
-        font-family: system-ui, -apple-system, sans-serif;
+        background-color: var(--cdc-slate-100);
+        font-family: var(--cdc-font);
         margin: 0;
-        padding: 0;
+        padding: 0.75rem;
+        min-height: 100vh;
       }
       .mobile-card {
         max-width: 480px;
-        margin: 1rem auto;
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        margin: 0.5rem auto 2rem;
+        background: var(--cdc-white);
+        border-radius: 1rem;
+        box-shadow: var(--cdc-shadow-elevated);
+        border: 1px solid var(--cdc-slate-200);
         padding: 1.25rem;
       }
-      .header-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #0d6efd;
+      .mobile-header-brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--cdc-slate-100);
+      }
+      .brand-title {
+        font-size: 1.125rem;
+        font-weight: 800;
+        color: var(--cdc-blue);
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        margin: 0;
       }
       .doc-info {
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        margin: 1rem 0;
+        background: var(--cdc-slate-50);
+        border: 1px solid var(--cdc-slate-200);
+        border-radius: 0.75rem;
+        padding: 0.875rem 1rem;
+        margin: 0.75rem 0 1rem;
       }
       .canvas-wrap {
-        border: 2px dashed #0d6efd;
-        border-radius: 8px;
-        background: #fafafa;
+        border: 2px dashed var(--cdc-cyan);
+        border-radius: 0.75rem;
+        background: var(--cdc-white);
         touch-action: none;
         position: relative;
         margin-bottom: 1rem;
+        overflow: hidden;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
       }
       canvas {
         display: block;
         width: 100%;
         height: 220px;
         touch-action: none;
+        cursor: crosshair;
       }
       .btn-touch {
         padding: 0.75rem 1.25rem;
-        font-size: 1.1rem;
-        font-weight: 600;
-        border-radius: 8px;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        border-radius: 0.75rem;
       }
       .signer-badge {
         display: inline-block;
-        background: #e7f3ff;
-        border: 1px solid #b6d4fe;
-        border-radius: 6px;
+        background: var(--cdc-cyan-light);
+        border: 1px solid rgba(0, 175, 239, 0.3);
+        border-radius: 0.5rem;
         padding: 0.4rem 0.75rem;
-        font-weight: 600;
-        color: #0a4e96;
+        font-weight: 700;
+        color: var(--cdc-blue);
         margin: 0.25rem 0;
         word-break: break-all;
       }
       .user-id-label {
-        font-size: 0.8rem;
-        color: #6c757d;
+        font-size: 0.75rem;
+        color: var(--cdc-gray);
         font-family: monospace;
-        margin-top: 0.15rem;
+        margin-top: 0.2rem;
+      }
+      .canvas-hint {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--cdc-slate-300);
+        font-size: 0.75rem;
+        pointer-events: none;
+        user-select: none;
       }
     </style>
-    <link rel="stylesheet" href="/static/css/firmadoc.css?v=12.5">
   </head>
   <body class="mobile-body">
     <main class="mobile-card mobile-signature-shell">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <div class="header-title">
-          <span>&#9997;&#65039;</span> FirmaDoc Movil
+      <div class="mobile-header-brand">
+        <div class="brand-title">
+          <span>Clínica del Caribe</span>
+          <span style="font-weight:400;color:var(--cdc-slate-300);">|</span>
+          <span style="color:var(--cdc-cyan);">FirmaDoc</span>
         </div>
-        <span class="badge bg-primary">Firma Manuscrita</span>
+        <span class="badge" style="background:var(--cdc-blue);color:#fff;font-size:0.6875rem;padding:0.35rem 0.6rem;">Firma Manuscrita</span>
       </div>
 
       <div id="alerts" aria-live="polite"></div>
@@ -92,24 +119,21 @@
         El usuario debe autenticarse con sus credenciales reales.
         NO contiene campo editable de identidad.
       -->
-      <div id="authNoSessionNotice" class="alert alert-warning" hidden>
-        <strong>&#128274; Identificacion requerida</strong>
+      <div id="authNoSessionNotice" class="alert alert-warning border-0 shadow-sm" hidden>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <strong class="h6 mb-0">Identificación requerida</strong>
+        </div>
         <p class="mb-1 small">Firma asignada a:</p>
-        <!--
-          noSessionAssignedLabel: nombre completo si el backend lo devuelve,
-          de lo contrario muestra el usuario institucional.
-          noSessionUserLabel: identificador institucional (lblanco, etc.).
-          Ambos son solo informativos; no son editables.
-        -->
         <div class="doc-info py-2 mb-2">
           <span id="noSessionAssignedLabel" class="signer-badge d-block">Firmante asignado</span>
           <div id="noSessionUserLabel" class="user-id-label ps-1"></div>
         </div>
-        <p class="mb-2 small">
-          Debe iniciar sesion como el firmante asignado para continuar.
+        <p class="mb-3 small text-muted">
+          Debe iniciar sesión como el firmante asignado para completar esta firma.
         </p>
         <button id="loginBtn" class="btn btn-primary btn-touch w-100" type="button">
-          Iniciar sesion
+          Iniciar sesión
         </button>
       </div>
 
@@ -117,20 +141,23 @@
         Panel C: hay sesion pero es de un usuario diferente al firmante asignado.
         No se muestra formulario que permita suplantar. Solo opcion de cambiar cuenta.
       -->
-      <div id="authMismatchNotice" class="alert alert-warning" hidden>
-        <strong>&#128100; Cuenta diferente al firmante asignado</strong>
+      <div id="authMismatchNotice" class="alert alert-warning border-0 shadow-sm" hidden>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <strong class="h6 mb-0">Cuenta diferente al firmante asignado</strong>
+        </div>
         <div class="doc-info py-2">
           <div class="small text-muted">Firma asignada a:</div>
           <span id="mismatchAssignedLabel" class="signer-badge d-block">-</span>
-          <div class="small text-muted mt-2">Sesion actual:</div>
+          <div class="small text-muted mt-2">Sesión actual:</div>
           <span id="mismatchCurrentLabel" class="signer-badge d-block">-</span>
         </div>
-        <p class="small mb-2">
+        <p class="small text-muted mb-3">
           Solo el firmante asignado puede completar esta firma.
-          Si usted es esa persona, inicie sesion con la cuenta correcta.
+          Si usted es esa persona, inicie sesión con la cuenta correcta.
         </p>
         <button id="loginAsAssignedBtn" class="btn btn-primary btn-touch w-100" type="button">
-          Iniciar sesion como el firmante asignado
+          Iniciar sesión como el firmante asignado
         </button>
       </div>
 
@@ -140,33 +167,38 @@
       -->
       <div id="sessionContent" hidden>
         <div class="doc-info">
-          <div class="small text-muted">Documento</div>
-          <strong id="docTitle" class="d-block text-truncate">Cargando documento...</strong>
-          <div class="small text-muted mt-2">Firmante</div>
+          <div class="small text-muted fw-semibold">DOCUMENTO ASIGNADO</div>
+          <strong id="docTitle" class="d-block text-truncate text-dark">Cargando documento...</strong>
+          <div class="small text-muted fw-semibold mt-2">FIRMANTE ASIGNADO</div>
           <span id="signerLabel" class="signer-badge d-block">-</span>
         </div>
 
-        <p class="small text-muted mb-2">Dibuje su firma en el recuadro a continuacion:</p>
+        <p class="small text-muted mb-2 fw-semibold">Dibuje su firma con el dedo o puntero táctil:</p>
 
         <div class="canvas-wrap">
           <canvas id="mobileSignatureCanvas"></canvas>
         </div>
 
         <div class="d-grid gap-2">
-          <button id="clearBtn" type="button" class="btn btn-outline-secondary btn-touch">Limpiar</button>
-          <button id="confirmBtn" type="button" class="btn btn-primary btn-touch">Confirmar y Enviar Firma</button>
+          <button id="clearBtn" type="button" class="btn btn-outline-secondary btn-touch">Limpiar lienzo</button>
+          <button id="confirmBtn" type="button" class="btn btn-primary btn-touch" style="background:var(--cdc-cyan);border-color:var(--cdc-cyan);">Confirmar y Enviar Firma</button>
         </div>
+        <p class="text-center small text-muted mt-2 mb-0" style="font-size:0.6875rem;">Trazo sincronizado de forma segura con el documento central.</p>
       </div>
 
       <div id="successContent" class="text-center py-4" hidden>
         <div class="display-4 text-success mb-2">&#9989;</div>
-        <h4 class="text-success">Firma Registrada</h4>
-        <p class="text-muted">Su firma ha sido incorporada al documento exitosamente.</p>
-        <p class="small text-muted">Esta ventana se cerrara automaticamente.</p>
+        <h4 class="text-success fw-bold">Firma Registrada</h4>
+        <p class="text-muted small">Su firma ha sido incorporada al documento exitosamente.</p>
+        <p class="small text-muted">Esta ventana se cerrará automáticamente.</p>
       </div>
     </main>
 
+    <footer class="text-center text-muted small py-2" style="font-size:0.6875rem;">
+      FirmaDoc · Gestión documental segura • Clínica del Caribe
+    </footer>
+
     <script src="/static/vendor/signature_pad.umd.min.js"></script>
-    <script type="module" src="/static/js/firma_movil.js?v=12.5"></script>
+    <script type="module" src="/static/js/firma_movil.js?v=15.0"></script>
   </body>
 </html>
