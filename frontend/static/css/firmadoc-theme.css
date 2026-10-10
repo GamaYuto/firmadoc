@@ -1,0 +1,1112 @@
+/**
+ * FIRMADOC - TEMA INSTITUCIONAL CLÍNICA DEL CARIBE
+ * 
+ * Tokens y sistema visual alineados con identidad corporativa y diseño Stitch:
+ * --cdc-cyan:       #00AFEF
+ * --cdc-blue:       #08337B
+ * --cdc-gray:       #696B6D
+ * --cdc-light-gray: #D9D9D9
+ * --cdc-white:      #FFFFFF
+ */
+
+:root {
+  --cdc-cyan: #00AFEF;
+  --cdc-cyan-dark: #0097cf;
+  --cdc-cyan-light: #EBF8FE;
+  --cdc-blue: #08337B;
+  --cdc-blue-dark: #06265c;
+  --cdc-blue-light: #EEF4FD;
+  --cdc-gray: #696B6D;
+  --cdc-light-gray: #D9D9D9;
+  --cdc-white: #FFFFFF;
+
+  --cdc-slate-50: #F8FAFC;
+  --cdc-slate-100: #F1F5F9;
+  --cdc-slate-200: #E2E8F0;
+  --cdc-slate-300: #CBD5E1;
+  --cdc-slate-400: #94A3B8;
+  --cdc-slate-600: #475569;
+  --cdc-slate-700: #334155;
+  --cdc-slate-800: #1E293B;
+  --cdc-slate-900: #0F172A;
+
+  --cdc-amber-50: #FFFBEB;
+  --cdc-amber-100: #FEF3C7;
+  --cdc-amber-200: #FDE68A;
+  --cdc-amber-700: #B45309;
+  --cdc-amber-500: #F59E0B;
+
+  --cdc-emerald-50: #ECFDF5;
+  --cdc-emerald-100: #D1FAE5;
+  --cdc-emerald-600: #059669;
+  --cdc-emerald-500: #10B981;
+
+  --cdc-danger-50: #FEF2F2;
+  --cdc-danger-100: #FEE2E2;
+  --cdc-danger-600: #DC2626;
+
+  --cdc-font: "Avenir Next", "Avenir", "Roboto", "Segoe UI", Arial, sans-serif;
+
+  --cdc-shadow-subtle: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --cdc-shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --cdc-shadow-elevated: 0 10px 25px -5px rgba(8, 51, 123, 0.08), 0 8px 10px -6px rgba(8, 51, 123, 0.04);
+  --cdc-shadow-sheet: 0 12px 36px rgba(8, 51, 123, 0.07), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --cdc-shadow-modal: 0 20px 25px -5px rgba(15, 23, 42, 0.2), 0 10px 10px -5px rgba(15, 23, 42, 0.08);
+}
+
+/* Base & Typography */
+html, body {
+  font-family: var(--cdc-font);
+  color: var(--cdc-slate-800);
+  background-color: var(--cdc-slate-100);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--cdc-slate-100);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--cdc-slate-300);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cdc-slate-400);
+}
+
+/* ==========================================================================
+   HEADER INSTITUCIONAL STITCH
+   ========================================================================== */
+.app-header {
+  background: var(--cdc-white);
+  border-bottom: 1px solid var(--cdc-slate-200);
+  padding: 0.625rem 1.25rem;
+  min-height: 3.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  box-shadow: var(--cdc-shadow-subtle);
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.brand-institution {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand-institution-text {
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--cdc-blue);
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.brand-divider {
+  width: 1px;
+  height: 1.5rem;
+  background-color: var(--cdc-slate-200);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  line-height: 1;
+}
+
+.brand-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--cdc-slate-900);
+  letter-spacing: -0.02em;
+}
+
+.brand-accent {
+  color: var(--cdc-cyan);
+}
+
+.brand-context {
+  font-size: 0.75rem;
+  color: var(--cdc-gray);
+  font-weight: 500;
+}
+
+/* Header context pill (Documento, Versión, Estado) */
+.header-context-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--cdc-slate-50);
+  border: 1px solid var(--cdc-slate-200);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  max-width: 480px;
+}
+
+.header-doc-name {
+  font-weight: 600;
+  color: var(--cdc-slate-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.header-doc-version {
+  background: var(--cdc-slate-200);
+  color: var(--cdc-slate-700);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.header-doc-status {
+  background: var(--cdc-amber-50);
+  color: var(--cdc-amber-700);
+  border: 1px solid var(--cdc-amber-200);
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Header Right Area */
+.header-right-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.badge-lab-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: var(--cdc-amber-50);
+  border: 1px solid var(--cdc-amber-200);
+  color: var(--cdc-amber-700);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+}
+
+.badge-lab-mode .dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: var(--cdc-amber-500);
+}
+
+.btn-header-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: var(--cdc-white);
+  border: 1px solid var(--cdc-cyan);
+  color: var(--cdc-blue);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--cdc-shadow-subtle);
+  text-decoration: none;
+}
+
+.btn-header-action:hover {
+  background: var(--cdc-cyan-light);
+  color: var(--cdc-blue-dark);
+  border-color: var(--cdc-cyan-dark);
+}
+
+.user-profile-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-left: 0.625rem;
+  border-left: 1px solid var(--cdc-slate-200);
+}
+
+.user-profile-info {
+  text-align: right;
+  line-height: 1.15;
+}
+
+.user-profile-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cdc-blue);
+}
+
+.user-profile-role {
+  font-size: 0.6875rem;
+  color: var(--cdc-gray);
+}
+
+.user-profile-avatar {
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: 50%;
+  background-color: var(--cdc-blue);
+  color: var(--cdc-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  box-shadow: 0 0 0 2px rgba(0, 175, 239, 0.4);
+}
+
+/* ==========================================================================
+   SHELL DE 3 COLUMNAS STITCH
+   ========================================================================== */
+.app-shell {
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr) minmax(340px, 380px);
+  height: calc(100vh - 3.875rem);
+  overflow: hidden;
+  background-color: var(--cdc-slate-100);
+}
+
+/* Sidebar Miniaturas */
+.sidebar {
+  background: var(--cdc-white);
+  border-right: 1px solid var(--cdc-slate-200);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
+.sidebar-return-area {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--cdc-slate-100);
+}
+
+.btn-return {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cdc-slate-700);
+  background: var(--cdc-slate-50);
+  border: 1px solid var(--cdc-slate-200);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.btn-return:hover {
+  background: var(--cdc-slate-100);
+  color: var(--cdc-slate-900);
+  border-color: var(--cdc-slate-300);
+}
+
+.sidebar-title-bar {
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cdc-gray);
+  background: rgba(248, 250, 252, 0.7);
+  border-bottom: 1px solid var(--cdc-slate-100);
+}
+
+.sidebar-page-count {
+  color: var(--cdc-blue);
+  font-weight: 800;
+}
+
+.sidebar-thumbs-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Thumb buttons inside sidebar */
+.thumb-button {
+  background: var(--cdc-white);
+  border: 1px solid var(--cdc-slate-200);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--cdc-slate-600);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--cdc-shadow-subtle);
+  width: 100%;
+}
+
+.thumb-button:hover {
+  border-color: var(--cdc-cyan);
+  color: var(--cdc-blue);
+  background: var(--cdc-cyan-light);
+}
+
+.thumb-button.active {
+  border: 2px solid var(--cdc-cyan);
+  background: var(--cdc-cyan-light);
+  color: var(--cdc-blue);
+  font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(0, 175, 239, 0.2);
+}
+
+/* ==========================================================================
+   COLUMNA CENTRAL: VISOR PDF
+   ========================================================================== */
+.viewer-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--cdc-slate-100);
+}
+
+.viewer-toolbar {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid var(--cdc-slate-200);
+  padding: 0.5rem 1rem;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--cdc-slate-600);
+  box-shadow: var(--cdc-shadow-subtle);
+  z-index: 30;
+}
+
+.viewer-pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.viewer-btn-icon {
+  background: transparent;
+  border: none;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  color: var(--cdc-slate-600);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.viewer-btn-icon:hover {
+  background: var(--cdc-slate-100);
+  color: var(--cdc-slate-900);
+}
+
+.viewer-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--cdc-slate-100);
+  border-radius: 0.5rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.viewer-zoom-select {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  color: var(--cdc-slate-700);
+  padding: 0.125rem 0.25rem;
+  cursor: pointer;
+}
+
+.viewer-zoom-select:focus {
+  outline: none;
+}
+
+.viewer-doc-info {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.6875rem;
+  color: var(--cdc-gray);
+}
+
+.viewer-doc-info-badge {
+  background: var(--cdc-cyan-light);
+  color: var(--cdc-blue);
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 175, 239, 0.2);
+}
+
+/* Área de scroll del documento */
+.pdf-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 1.5rem 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* Hoja PDF */
+.pdf-page {
+  position: relative;
+  background: var(--cdc-white);
+  border-radius: 0.75rem;
+  box-shadow: var(--cdc-shadow-sheet);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  margin-bottom: 1.5rem;
+}
+
+.pdf-page canvas {
+  display: block;
+  border-radius: 0.75rem;
+}
+
+/* Cajas de firma overlay */
+.signature-box {
+  position: absolute;
+  border: 2px dashed var(--cdc-cyan);
+  background: rgba(0, 175, 239, 0.1);
+  border-radius: 0.5rem;
+  color: var(--cdc-blue);
+  cursor: move;
+  overflow: visible;
+  transition: box-shadow 0.15s ease;
+}
+
+.signature-box.selected {
+  border-color: var(--cdc-cyan-dark);
+  box-shadow: 0 0 0 3px rgba(0, 175, 239, 0.35);
+}
+
+.signature-box .signature-tag {
+  position: absolute;
+  top: -1.25rem;
+  left: 0.5rem;
+  background: var(--cdc-cyan);
+  color: var(--cdc-white);
+  font-size: 0.625rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--cdc-shadow-subtle);
+}
+
+.signature-box .signature-content-preview {
+  padding: 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   PANEL DERECHO: WIZARD DE CONFIGURACIÓN & TAREA
+   ========================================================================== */
+.config-panel,
+.task-panel {
+  background: var(--cdc-white);
+  border-left: 1px solid var(--cdc-slate-200);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.wizard-header {
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--cdc-slate-100);
+}
+
+.wizard-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.wizard-title {
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: var(--cdc-blue);
+  margin: 0;
+}
+
+.wizard-step-pill {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--cdc-cyan);
+  background: var(--cdc-cyan-light);
+  border: 1px solid rgba(0, 175, 239, 0.2);
+  padding: 0.15rem 0.625rem;
+  border-radius: 9999px;
+}
+
+.wizard-subtitle {
+  font-size: 0.75rem;
+  color: var(--cdc-gray);
+  margin: 0 0 1rem 0;
+}
+
+/* Stepper moderno horizontal */
+.workflow-steps {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.workflow-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--cdc-slate-400);
+}
+
+.workflow-steps li span {
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  background: var(--cdc-slate-100);
+  border: 1px solid var(--cdc-slate-200);
+  color: var(--cdc-slate-600);
+}
+
+.workflow-steps li.active {
+  color: var(--cdc-blue);
+  font-weight: 700;
+}
+
+.workflow-steps li.active span {
+  background: var(--cdc-cyan);
+  border-color: var(--cdc-cyan);
+  color: var(--cdc-white);
+  box-shadow: 0 0 0 2px rgba(0, 175, 239, 0.3);
+}
+
+.workflow-step-divider {
+  flex: 1;
+  height: 1px;
+  background: var(--cdc-slate-200);
+  margin: 0 0.5rem;
+}
+
+.wizard-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  flex: 1;
+}
+
+/* Sección "¿Quién debe firmar?" - Tarjetas Interactivas */
+.signer-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cdc-slate-800);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.625rem;
+  display: block;
+}
+
+.signer-card {
+  border: 1px solid var(--cdc-slate-200);
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+  background: var(--cdc-white);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.625rem;
+  position: relative;
+}
+
+.signer-card:hover {
+  border-color: var(--cdc-slate-300);
+  box-shadow: var(--cdc-shadow-subtle);
+}
+
+.signer-card.active,
+.signer-card:has(input[type="radio"]:checked) {
+  border: 2px solid var(--cdc-cyan);
+  background: rgba(0, 175, 239, 0.04);
+  box-shadow: 0 0 0 1px var(--cdc-cyan);
+}
+
+.signer-card-indicator {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 1px solid var(--cdc-slate-300);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+  background: var(--cdc-white);
+  transition: all 0.15s ease;
+}
+
+.signer-card.active .signer-card-indicator,
+.signer-card:has(input[type="radio"]:checked) .signer-card-indicator {
+  background: var(--cdc-cyan);
+  border-color: var(--cdc-cyan);
+  color: var(--cdc-white);
+}
+
+.signer-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.signer-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.125rem;
+}
+
+.signer-card-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cdc-slate-800);
+}
+
+.signer-card.active .signer-card-title,
+.signer-card:has(input[type="radio"]:checked) .signer-card-title {
+  color: var(--cdc-blue);
+}
+
+.signer-card-badge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  background: var(--cdc-blue-light);
+  color: var(--cdc-blue);
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.signer-card-desc {
+  font-size: 0.6875rem;
+  color: var(--cdc-slate-600);
+  line-height: 1.3;
+  margin: 0;
+}
+
+/* Tarjeta de información de Posición de Firma */
+.position-card {
+  background: var(--cdc-slate-50);
+  border: 1px solid var(--cdc-slate-200);
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+}
+
+.position-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.position-card-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cdc-blue);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.position-card-pill {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--cdc-blue);
+  background: var(--cdc-cyan-light);
+  border: 1px solid rgba(0, 175, 239, 0.2);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.position-card-text {
+  font-size: 0.6875rem;
+  color: var(--cdc-slate-600);
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* Tarjeta Sincronización Móvil */
+.mobile-sync-card {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  border: 1px solid var(--cdc-slate-200);
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+}
+
+.mobile-sync-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.mobile-sync-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--cdc-blue);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.mobile-sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--cdc-emerald-600);
+  background: var(--cdc-emerald-50);
+  padding: 0.125rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.mobile-sync-status .pulse-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--cdc-emerald-500);
+  animation: cdc-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes cdc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Botones principales */
+.btn-primary-action {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--cdc-cyan);
+  border: 1px solid var(--cdc-cyan);
+  color: var(--cdc-white);
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow: var(--cdc-shadow-card);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.btn-primary-action:hover:not(:disabled) {
+  background: var(--cdc-cyan-dark);
+  border-color: var(--cdc-cyan-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--cdc-shadow-elevated);
+}
+
+.btn-primary-action:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-primary-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.wizard-footer-note {
+  text-align: center;
+  font-size: 0.625rem;
+  color: var(--cdc-gray);
+  margin-top: 0.5rem;
+}
+
+/* ==========================================================================
+   FOOTER CORPORATIVO GLOBAL
+   ========================================================================== */
+.corporate-footer {
+  background: var(--cdc-white);
+  border-top: 1px solid var(--cdc-slate-200);
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--cdc-gray);
+  z-index: 30;
+  flex-shrink: 0;
+}
+
+.footer-pillars {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.footer-pillar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.footer-pillar .pillar-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+.footer-pillar .pillar-dot.cyan { background-color: var(--cdc-cyan); }
+.footer-pillar .pillar-dot.blue { background-color: var(--cdc-blue); }
+.footer-pillar .pillar-dot.green { background-color: var(--cdc-emerald-500); }
+
+.footer-pillar strong {
+  color: var(--cdc-slate-700);
+  font-weight: 700;
+}
+
+.footer-brand-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer-brand-text .corp-name {
+  color: var(--cdc-blue);
+  font-weight: 800;
+}
+
+/* ==========================================================================
+   MODALES (QR, PROCESO ACTIVO, GERENCIA)
+   ========================================================================== */
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal-dialog-custom {
+  background: var(--cdc-white);
+  border-radius: 1rem;
+  max-width: 26rem;
+  width: 100%;
+  box-shadow: var(--cdc-shadow-modal);
+  border: 1px solid var(--cdc-slate-200);
+  overflow: hidden;
+  animation: cdc-modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cdc-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-header-custom {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--cdc-slate-100);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(248, 250, 252, 0.5);
+}
+
+.modal-header-custom h3 {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--cdc-blue);
+  margin: 0;
+}
+
+.btn-close-custom {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--cdc-slate-400);
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+.btn-close-custom:hover {
+  color: var(--cdc-slate-700);
+}
+
+.modal-body-custom {
+  padding: 1.25rem;
+}
+
+.modal-footer-custom {
+  padding: 0.75rem 1.25rem;
+  background: var(--cdc-slate-50);
+  border-top: 1px solid var(--cdc-slate-100);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Marco QR estilizado */
+.qr-box-stitch {
+  background: var(--cdc-white);
+  padding: 0.875rem;
+  border-radius: 1rem;
+  border: 2px solid rgba(0, 175, 239, 0.4);
+  display: inline-block;
+  box-shadow: var(--cdc-shadow-subtle);
+  margin: 0.5rem auto 0.75rem;
+}
+
+/* ==========================================================================
+   DRAWER / COMPANION MÓVIL EN DESKTOP
+   ========================================================================== */
+.mobile-companion-drawer {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 45;
+  background: var(--cdc-white);
+  border: 1px solid var(--cdc-slate-300);
+  border-radius: 1rem;
+  box-shadow: var(--cdc-shadow-modal);
+  width: 22rem;
+  max-width: calc(100vw - 2.5rem);
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+
+.mobile-companion-header {
+  background: var(--cdc-slate-900);
+  color: var(--cdc-white);
+  padding: 0.625rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.mobile-companion-badge {
+  font-size: 0.625rem;
+  color: var(--cdc-emerald-500);
+  font-weight: 700;
+  background: rgba(30, 41, 59, 0.9);
+  padding: 0.125rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.mobile-companion-body {
+  padding: 1rem;
+  background: var(--cdc-slate-50);
+}
+
+/* ==========================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .app-shell {
+    grid-template-columns: 180px minmax(0, 1fr) 320px;
+  }
+  .footer-pillars .footer-pillar:nth-child(n+3) {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: calc(100vh - 3.875rem);
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar {
+    display: none;
+  }
+  .config-panel, .task-panel {
+    border-left: none;
+    border-top: 1px solid var(--cdc-slate-200);
+    height: auto;
+  }
+  .footer-pillars {
+    display: none;
+  }
+}
