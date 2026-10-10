@@ -8,9 +8,10 @@
     <link rel="stylesheet" href="/static/css/firmadoc.css?v=15.0">
     <link rel="stylesheet" href="/static/css/firmadoc-theme.css?v=15.0">
   </head>
-  <body class="d-flex flex-column h-100">
+  <body class="operational-body">
     <!-- BEGIN: Header Institucional -->
     <header class="app-header">
+      <!-- PENDIENTE_ASSET_LOGO_OFICIAL: Pendiente de asset gráfico oficial en alta resolución / vector -->
       <div class="brand-block">
         <div class="brand-institution">
           <span class="brand-institution-text">Clínica del Caribe</span>
@@ -45,10 +46,14 @@
         </button>
         <div class="user-profile-badge">
           <div class="user-profile-info d-none d-sm-block">
-            <p class="user-profile-name m-0" id="headerSignerDisplay">Jorge Silva</p>
-            <p class="user-profile-role m-0" id="headerUserDisplay">jsilva · Usuario institucional</p>
+            <p class="user-profile-name m-0" id="headerSignerDisplay">Sesión institucional</p>
+            <p class="user-profile-role m-0" id="headerUserDisplay">FirmaDoc</p>
           </div>
-          <div class="user-profile-avatar" id="headerAvatarDisplay" aria-hidden="true">JS</div>
+          <div class="user-profile-avatar" id="headerAvatarDisplay" aria-hidden="true">
+            <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+            </svg>
+          </div>
         </div>
       </div>
     </header>
