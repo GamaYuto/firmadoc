@@ -1,81 +1,117 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FirmaDoc | Iniciar sesion</title>
+    <title>FirmaDoc | Iniciar sesión — Clínica del Caribe</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/firmadoc-theme.css?v=15.0">
     <style>
       body {
-        background-color: #f4f6f9;
-        font-family: system-ui, -apple-system, sans-serif;
+        background-color: var(--cdc-slate-100);
+        font-family: var(--cdc-font);
         min-height: 100vh;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         margin: 0;
-        padding: 1rem;
+        padding: 1.5rem 1rem;
       }
       .login-card {
         width: 100%;
         max-width: 400px;
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
-        padding: 2rem 1.75rem;
+        background: var(--cdc-white);
+        border-radius: 1rem;
+        box-shadow: var(--cdc-shadow-elevated);
+        border: 1px solid var(--cdc-slate-200);
+        padding: 2.25rem 2rem;
       }
-      .brand {
-        font-size: 1.5rem;
+      .brand-title {
+        font-size: 1.25rem;
         font-weight: 800;
-        color: #0d6efd;
+        color: var(--cdc-blue);
         display: flex;
         align-items: center;
         gap: 0.5rem;
         margin-bottom: 0.25rem;
       }
       .brand-sub {
-        font-size: 0.85rem;
-        color: #6c757d;
-        margin-bottom: 1.5rem;
+        font-size: 0.8125rem;
+        color: var(--cdc-gray);
+        margin-bottom: 1.75rem;
       }
-      label { font-weight: 600; font-size: 0.9rem; }
-      input.form-control { margin-top: 0.25rem; }
+      label {
+        font-weight: 700;
+        font-size: 0.8125rem;
+        color: var(--cdc-slate-700);
+        margin-bottom: 0.25rem;
+      }
+      input.form-control {
+        border-radius: 0.5rem;
+        border: 1px solid var(--cdc-slate-200);
+        padding: 0.625rem 0.875rem;
+        font-size: 0.875rem;
+      }
+      input.form-control:focus {
+        border-color: var(--cdc-cyan);
+        box-shadow: 0 0 0 2px rgba(0, 175, 239, 0.2);
+        outline: none;
+      }
       .btn-login {
         padding: 0.75rem;
-        font-size: 1rem;
-        font-weight: 600;
-        border-radius: 8px;
+        font-size: 0.9375rem;
+        font-weight: 800;
+        border-radius: 0.75rem;
         width: 100%;
-        margin-top: 0.5rem;
+        margin-top: 0.75rem;
+        background: var(--cdc-cyan);
+        border-color: var(--cdc-cyan);
+        color: var(--cdc-white);
+        box-shadow: var(--cdc-shadow-card);
+        transition: all 0.15s ease;
+      }
+      .btn-login:hover {
+        background: var(--cdc-cyan-dark);
+        border-color: var(--cdc-cyan-dark);
+        color: var(--cdc-white);
       }
       #errorBox { display: none; }
     </style>
   </head>
   <body>
     <div class="login-card">
-      <div class="brand">&#9997;&#65039; FirmaDoc</div>
-      <div class="brand-sub">Autenticacion institucional</div>
+      <div class="brand-title">
+        <span>Clínica del Caribe</span>
+        <span style="font-weight:400;color:var(--cdc-slate-300);">|</span>
+        <span style="color:var(--cdc-cyan);">FirmaDoc</span>
+      </div>
+      <div class="brand-sub">Autenticación institucional de firma</div>
 
-      <div id="errorBox" class="alert alert-danger" role="alert"></div>
+      <div id="errorBox" class="alert alert-danger small py-2 mb-3" role="alert"></div>
 
       <div class="mb-3">
         <label for="userId">Usuario institucional</label>
         <input id="userId" type="text" class="form-control" autocomplete="username"
-               placeholder="Ej. lblanco" autofocus>
+               placeholder="Ej. lblanco o jsilva" autofocus>
       </div>
       <div class="mb-3">
-        <label for="password">Contrasena</label>
+        <label for="password">Contraseña</label>
         <input id="password" type="password" class="form-control" autocomplete="current-password"
-               placeholder="Contrasena">
+               placeholder="Contraseña institucional">
       </div>
-      <button id="loginBtn" class="btn btn-primary btn-login" type="button">
-        Iniciar sesion
+      <button id="loginBtn" class="btn btn-login" type="button">
+        Iniciar sesión
       </button>
     </div>
 
+    <footer class="text-center text-muted small mt-4" style="font-size:0.6875rem;">
+      FirmaDoc · Gestión documental segura • Clínica del Caribe
+    </footer>
+
     <script type="module">
       // Lee el parametro "next" de la URL actual.
-      // Valacion anti-open-redirect: solo acepta rutas relativas del mismo origen.
+      // Validacion anti-open-redirect: solo acepta rutas relativas del mismo origen.
       function getSafeNext() {
         const params = new URLSearchParams(window.location.search);
         const raw = params.get("next") || "";
@@ -125,7 +161,7 @@
           });
 
           if (!resp.ok) {
-            let detail = "Usuario o contrasena incorrectos.";
+            let detail = "Usuario o contraseña incorrectos.";
             try { const d = await resp.json(); detail = d.detail || detail; } catch {}
             showError(detail);
             return;
@@ -134,10 +170,10 @@
           // Login exitoso: redirigir al destino seguro
           window.location.href = safeNext;
         } catch {
-          showError("No fue posible conectar con FirmaDoc. Verifique su conexion.");
+          showError("No fue posible conectar con FirmaDoc. Verifique su conexión.");
         } finally {
           loginBtn.disabled = false;
-          loginBtn.textContent = "Iniciar sesion";
+          loginBtn.textContent = "Iniciar sesión";
         }
       }
 
