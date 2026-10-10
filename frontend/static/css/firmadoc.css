@@ -1,17 +1,17 @@
 :root {
-  --fd-blue: #123B66;
-  --fd-blue-strong: #092A4A;
-  --fd-cyan: #0787A8;
-  --fd-green: #16764A;
-  --fd-amber: #A35C00;
-  --fd-red: #B42318;
-  --fd-gray: #52606D;
-  --fd-muted: #6B7785;
-  --fd-light: #E7EBEF;
-  --fd-bg: #F3F5F7;
+  --fd-blue: #08337B;
+  --fd-blue-strong: #08337B;
+  --fd-cyan: #00AFEF;
+  --fd-green: #10B981;
+  --fd-amber: #F59E0B;
+  --fd-red: #DC2626;
+  --fd-gray: #696B6D;
+  --fd-muted: #64748B;
+  --fd-light: #EBF8FE;
+  --fd-bg: #F8FAFC;
   --fd-surface: #FFFFFF;
-  --fd-border: #D3DAE1;
-  --fd-shadow: 0 8px 24px rgba(21, 38, 55, 0.08);
+  --fd-border: #E2E8F0;
+  --fd-shadow: 0 10px 25px -5px rgba(8, 51, 123, 0.08);
 }
 
 * {
@@ -21,8 +21,8 @@
 body {
   margin: 0;
   background: var(--fd-bg);
-  color: #1F2933;
-  font-family: Inter, "Segoe UI", Arial, Helvetica, sans-serif;
+  color: #1E293B;
+  font-family: "Avenir Next", "Avenir", "Roboto", "Segoe UI", Arial, sans-serif;
   font-size: 14px;
   line-height: 1.45;
 }
