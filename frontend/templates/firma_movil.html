@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FirmaDoc | Firma Móvil</title>
+    <title>FirmaDoc | Firma Movil</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
     <style>
       body {
@@ -55,39 +55,98 @@
         font-weight: 600;
         border-radius: 8px;
       }
+      .signer-badge {
+        display: inline-block;
+        background: #e7f3ff;
+        border: 1px solid #b6d4fe;
+        border-radius: 6px;
+        padding: 0.4rem 0.75rem;
+        font-weight: 600;
+        color: #0a4e96;
+        margin: 0.25rem 0;
+        word-break: break-all;
+      }
+      .user-id-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-family: monospace;
+        margin-top: 0.15rem;
+      }
     </style>
-    <link rel="stylesheet" href="/static/css/firmadoc.css?v=12.1">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=12.5">
   </head>
   <body class="mobile-body">
     <main class="mobile-card mobile-signature-shell">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <div class="header-title">
-          <span>✍️</span> FirmaDoc Móvil
+          <span>&#9997;&#65039;</span> FirmaDoc Movil
         </div>
         <span class="badge bg-primary">Firma Manuscrita</span>
       </div>
 
       <div id="alerts" aria-live="polite"></div>
 
-      <div id="authNotice" class="alert alert-warning" hidden>
-        <strong>Identificacion requerida</strong>
-        <p class="mb-2 small">Ingrese el usuario institucional asignado a esta firma.</p>
-        <label class="visually-hidden" for="mobileUserInput">Usuario institucional</label>
-        <div class="mobile-auth-row">
-          <input id="mobileUserInput" class="form-control" type="text" autocomplete="username" placeholder="Usuario institucional">
-          <button id="quickLoginBtn" class="btn btn-outline-primary" type="button">Continuar</button>
+      <!--
+        Panel A: sin sesion institucional en este dispositivo (HTTP 401).
+        Muestra el firmante asignado (si el backend lo incluye en el body del error).
+        El usuario debe autenticarse con sus credenciales reales.
+        NO contiene campo editable de identidad.
+      -->
+      <div id="authNoSessionNotice" class="alert alert-warning" hidden>
+        <strong>&#128274; Identificacion requerida</strong>
+        <p class="mb-1 small">Firma asignada a:</p>
+        <!--
+          noSessionAssignedLabel: nombre completo si el backend lo devuelve,
+          de lo contrario muestra el usuario institucional.
+          noSessionUserLabel: identificador institucional (lblanco, etc.).
+          Ambos son solo informativos; no son editables.
+        -->
+        <div class="doc-info py-2 mb-2">
+          <span id="noSessionAssignedLabel" class="signer-badge d-block">Firmante asignado</span>
+          <div id="noSessionUserLabel" class="user-id-label ps-1"></div>
         </div>
+        <p class="mb-2 small">
+          Debe iniciar sesion como el firmante asignado para continuar.
+        </p>
+        <button id="loginBtn" class="btn btn-primary btn-touch w-100" type="button">
+          Iniciar sesion
+        </button>
       </div>
 
-      <div id="sessionContent">
+      <!--
+        Panel C: hay sesion pero es de un usuario diferente al firmante asignado.
+        No se muestra formulario que permita suplantar. Solo opcion de cambiar cuenta.
+      -->
+      <div id="authMismatchNotice" class="alert alert-warning" hidden>
+        <strong>&#128100; Cuenta diferente al firmante asignado</strong>
+        <div class="doc-info py-2">
+          <div class="small text-muted">Firma asignada a:</div>
+          <span id="mismatchAssignedLabel" class="signer-badge d-block">-</span>
+          <div class="small text-muted mt-2">Sesion actual:</div>
+          <span id="mismatchCurrentLabel" class="signer-badge d-block">-</span>
+        </div>
+        <p class="small mb-2">
+          Solo el firmante asignado puede completar esta firma.
+          Si usted es esa persona, inicie sesion con la cuenta correcta.
+        </p>
+        <button id="loginAsAssignedBtn" class="btn btn-primary btn-touch w-100" type="button">
+          Iniciar sesion como el firmante asignado
+        </button>
+      </div>
+
+      <!--
+        Panel B: sesion correcta (usuario autenticado == firmante asignado).
+        Permite dibujar y confirmar la firma.
+      -->
+      <div id="sessionContent" hidden>
         <div class="doc-info">
           <div class="small text-muted">Documento</div>
           <strong id="docTitle" class="d-block text-truncate">Cargando documento...</strong>
           <div class="small text-muted mt-2">Firmante</div>
-          <strong id="signerLabel">-</strong>
+          <span id="signerLabel" class="signer-badge d-block">-</span>
         </div>
 
-        <p class="small text-muted mb-2">Dibuje su firma en el recuadro a continuación:</p>
+        <p class="small text-muted mb-2">Dibuje su firma en el recuadro a continuacion:</p>
 
         <div class="canvas-wrap">
           <canvas id="mobileSignatureCanvas"></canvas>
@@ -100,14 +159,14 @@
       </div>
 
       <div id="successContent" class="text-center py-4" hidden>
-        <div class="display-4 text-success mb-2">✓</div>
+        <div class="display-4 text-success mb-2">&#9989;</div>
         <h4 class="text-success">Firma Registrada</h4>
         <p class="text-muted">Su firma ha sido incorporada al documento exitosamente.</p>
-        <p class="small text-muted">Esta ventana se cerrará automáticamente.</p>
+        <p class="small text-muted">Esta ventana se cerrara automaticamente.</p>
       </div>
     </main>
 
     <script src="/static/vendor/signature_pad.umd.min.js"></script>
-    <script type="module" src="/static/js/firma_movil.js?v=12.3"></script>
+    <script type="module" src="/static/js/firma_movil.js?v=12.5"></script>
   </body>
 </html>

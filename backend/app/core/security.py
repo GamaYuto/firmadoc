@@ -157,6 +157,21 @@ def get_current_principal(
     return principal
 
 
+def get_optional_principal(
+    request: Request,
+) -> Optional[AuthenticatedPrincipal]:
+    token: Optional[str] = request.cookies.get(settings.FIRMADOC_SESSION_COOKIE_NAME)
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+
+    if not token:
+        return None
+
+    return decode_session_token(token)
+
+
 def require_roles(*allowed_roles: str) -> Callable[[AuthenticatedPrincipal], AuthenticatedPrincipal]:
     def role_checker(principal: AuthenticatedPrincipal = Depends(get_current_principal)) -> AuthenticatedPrincipal:
         if principal.is_admin:

@@ -1,0 +1,153 @@
+﻿<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FirmaDoc | Iniciar sesion</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+    <style>
+      body {
+        background-color: #f4f6f9;
+        font-family: system-ui, -apple-system, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 1rem;
+      }
+      .login-card {
+        width: 100%;
+        max-width: 400px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+        padding: 2rem 1.75rem;
+      }
+      .brand {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #0d6efd;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+      }
+      .brand-sub {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+      }
+      label { font-weight: 600; font-size: 0.9rem; }
+      input.form-control { margin-top: 0.25rem; }
+      .btn-login {
+        padding: 0.75rem;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        width: 100%;
+        margin-top: 0.5rem;
+      }
+      #errorBox { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="login-card">
+      <div class="brand">&#9997;&#65039; FirmaDoc</div>
+      <div class="brand-sub">Autenticacion institucional</div>
+
+      <div id="errorBox" class="alert alert-danger" role="alert"></div>
+
+      <div class="mb-3">
+        <label for="userId">Usuario institucional</label>
+        <input id="userId" type="text" class="form-control" autocomplete="username"
+               placeholder="Ej. lblanco" autofocus>
+      </div>
+      <div class="mb-3">
+        <label for="password">Contrasena</label>
+        <input id="password" type="password" class="form-control" autocomplete="current-password"
+               placeholder="Contrasena">
+      </div>
+      <button id="loginBtn" class="btn btn-primary btn-login" type="button">
+        Iniciar sesion
+      </button>
+    </div>
+
+    <script type="module">
+      // Lee el parametro "next" de la URL actual.
+      // Valacion anti-open-redirect: solo acepta rutas relativas del mismo origen.
+      function getSafeNext() {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("next") || "";
+        if (!raw) return "/";
+        try {
+          // Si es una URL absoluta, solo la acepta si es el mismo origen
+          const url = new URL(raw, window.location.origin);
+          if (url.origin !== window.location.origin) return "/";
+          return url.pathname + url.search + url.hash;
+        } catch {
+          // Si no es parseable como URL, tratar como ruta relativa
+          if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+          return "/";
+        }
+      }
+
+      const safeNext = getSafeNext();
+      const userId   = document.getElementById("userId");
+      const password = document.getElementById("password");
+      const loginBtn = document.getElementById("loginBtn");
+      const errorBox = document.getElementById("errorBox");
+
+      function showError(msg) {
+        errorBox.textContent = msg;
+        errorBox.style.display = "block";
+      }
+      function clearError() {
+        errorBox.style.display = "none";
+        errorBox.textContent = "";
+      }
+
+      async function doLogin() {
+        clearError();
+        const user = userId.value.trim();
+        const pass = password.value;
+        if (!user) { showError("Ingrese su usuario institucional."); return; }
+
+        loginBtn.disabled = true;
+        loginBtn.textContent = "Ingresando...";
+
+        try {
+          const resp = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ user_id: user, password: pass }),
+            credentials: "same-origin",
+          });
+
+          if (!resp.ok) {
+            let detail = "Usuario o contrasena incorrectos.";
+            try { const d = await resp.json(); detail = d.detail || detail; } catch {}
+            showError(detail);
+            return;
+          }
+
+          // Login exitoso: redirigir al destino seguro
+          window.location.href = safeNext;
+        } catch {
+          showError("No fue posible conectar con FirmaDoc. Verifique su conexion.");
+        } finally {
+          loginBtn.disabled = false;
+          loginBtn.textContent = "Iniciar sesion";
+        }
+      }
+
+      loginBtn.addEventListener("click", doLogin);
+      password.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") doLogin();
+      });
+      userId.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") password.focus();
+      });
+    </script>
+  </body>
+</html>

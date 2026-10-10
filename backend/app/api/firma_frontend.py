@@ -35,13 +35,14 @@ from app.schemas.firma_frontend import (
 from pydantic import BaseModel
 from urllib.parse import urlparse
 from app.models.docfirma import TipoFirma
+from app.models.docpart import DocPart
 from app.services.alfresco_service import AlfrescoService
 from app.services.signature_exceptions import SignaturePublicationError
 from app.services.frontend_signature_service import frontend_signature_service
 from app.services.qr_service import qr_service
 from app.services.manager_approval_service import manager_approval_service
 
-from app.core.security import AuthenticatedPrincipal, get_current_principal
+from app.core.security import AuthenticatedPrincipal, get_current_principal, get_optional_principal
 
 router = APIRouter()
 
@@ -387,23 +388,61 @@ def get_qr_session_status(
 def get_mobile_session_detail(
     token: str,
     db: Session = Depends(get_db),
-    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+    principal: AuthenticatedPrincipal | None = Depends(get_optional_principal),
 ):
+    """
+    Devuelve informacion de la sesion QR movil.
+
+    Separacion de roles:
+      - assigned_signer: quien debe firmar (almacenado en SesionQr.usrid, inmutable)
+      - principal.user_id: quien esta autenticado en este dispositivo ahora mismo
+
+    Sin sesion (HTTP 401):
+      Si no hay sesion autenticada, devuelve 401 Unauthorized incluyendo en el
+      cuerpo la informacion del firmante asignado para que el frontend guie al usuario.
+      No se crea sesion valida ni se permite firmar.
+
+    Con sesion:
+      - MATCH: usuario autenticado coincide con firmante asignado (puede firmar)
+      - MISMATCH: usuario autenticado es otro (se muestra advertencia sin formulario de suplantacion)
+    """
+    if not principal:
+        try:
+            sesion = qr_service.obtener_sesion_movil(db, token)
+            firma = sesion.firma
+            assigned = sesion.usrid.strip().lower()
+            part = db.get(DocPart, firma.parid) if firma and firma.parid else None
+            signer_name = part.nomcom if part and part.nomcom else assigned
+            detail = {
+                "message": "Autenticacion requerida. Inicie sesion para continuar.",
+                "assigned_signer": assigned,
+                "signer_name": signer_name,
+            }
+        except Exception:
+            detail = "Autenticacion requerida. Inicie sesion para continuar."
+        raise HTTPException(status_code=401, detail=detail)
+
     sesion = qr_service.obtener_sesion_movil(db, token)
-    if sesion.usrid.lower() != principal.user_id.strip().lower():
-        raise HTTPException(
-            status_code=403,
-            detail=f"Usuario autenticado ({principal.user_id}) no corresponde al firmante asignado ({sesion.usrid})",
-        )
     firma = sesion.firma
     doc = sesion.documento
+
+    assigned = sesion.usrid.strip().lower()
+    current = principal.user_id.strip().lower()
+
+    session_state = "MATCH" if assigned == current else "MISMATCH"
+    prepared_by = (doc.usrcre or "").strip().lower() if doc else ""
+
     return MobileSessionDetail(
         token=token,
         docnom=doc.docnom if doc else "Documento",
-        usrid=sesion.usrid,
+        assigned_signer=assigned,
+        usrid=assigned,
         tipfir=firma.tipfir if firma else "MANUSCRITA",
         docid=sesion.docid,
         firid=sesion.firid,
+        session_state=session_state,
+        prepared_by=prepared_by,
+        current_user=current,
     )
 
 

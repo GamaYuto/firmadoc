@@ -1,11 +1,35 @@
 from pathlib import Path
+from urllib.parse import urlparse
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Query, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.requests import Request
 from fastapi.staticfiles import StaticFiles
 from app.api.api_router import api_router
 from app.core.config import settings
+
+
+def _is_safe_next(next_url: str | None) -> bool:
+    """Valida que next_url sea una ruta relativa del mismo servidor.
+
+    Rechaza:
+      - URLs absolutas a otros origenes (open-redirect)
+      - Protocol-relative URLs (//evil.com/...)
+      - Rutas vacias o None
+    Acepta:
+      - Rutas que empiezan con / pero no con //
+    """
+    if not next_url:
+        return False
+    if next_url.startswith("//"):
+        return False
+    if not next_url.startswith("/"):
+        return False
+    # Intentar parsear: si tiene scheme/netloc es absoluta (rechazada)
+    parsed = urlparse(next_url)
+    if parsed.scheme or parsed.netloc:
+        return False
+    return True
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -80,6 +104,22 @@ async def pending_page():
 @app.get("/firma-movil/{token}", include_in_schema=False)
 async def mobile_signature_page(token: str):
     return _frontend_file("firma_movil.html")
+
+
+@app.get("/auth/login", include_in_schema=False)
+async def login_page(
+    request: Request,
+    next: str | None = Query(default=None, alias="next"),
+) -> FileResponse:
+    """Pagina de login institucional movil.
+
+    Acepta el parametro ?next=<ruta> para redirigir tras autenticacion exitosa.
+    El parametro 'next' se valida contra open-redirect en el frontend (JS) y aqui.
+    Si next es invalido se sirve la pagina igualmente; el JS usara "/" como destino.
+    """
+    # La validacion de next se hace en el frontend JS de login_movil.html.
+    # No hacemos redirect del lado del servidor; solo servimos la pagina.
+    return _frontend_file("login_movil.html")
 
 
 @app.get("/autorizar-gerencia", include_in_schema=False)

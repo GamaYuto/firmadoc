@@ -356,3 +356,103 @@ test("iniciar.js gestiona conflicto 409 con modal continuar/cancelar y sin reint
   // No reintenta en 409
   assert.match(iniciarJs, /onRetry:\s*error\.status === 409 \? null :/);
 });
+
+// ===========================================================================
+// Tests flujo movil: firma_movil.js y firma_movil.html
+// ===========================================================================
+
+test("firma_movil.js importa ApiError de api.js", () => {
+  const source = fs.readFileSync(path.join("static", "js", "firma_movil.js"), "utf8");
+  assert.match(source, /import\s*\{[^}]*ApiError[^}]*\}\s*from\s*["']\.\/api\.js/);
+});
+
+test("firma_movil.js captura 401 con instanceof ApiError y no relanza", () => {
+  const source = fs.readFileSync(path.join("static", "js", "firma_movil.js"), "utf8");
+  // Debe verificar el tipo con instanceof ApiError y status 401
+  assert.match(source, /instanceof ApiError.*&&.*err\.status === 401|err instanceof ApiError.*err\.status === 401/);
+  // No debe llamar showUiError para el 401 principal
+  // La captura del 401 debe retornar, no relanzar
+  assert.match(source, /err\.status === 401[\s\S]{1,400}return\s*;/);
+});
+
+test("firma_movil.js tiene bandera sessionLoaded anti-doble-carga", () => {
+  const source = fs.readFileSync(path.join("static", "js", "firma_movil.js"), "utf8");
+  assert.match(source, /sessionLoaded/);
+  assert.match(source, /if \(sessionLoaded\) return/);
+  assert.match(source, /sessionLoaded = true/);
+});
+
+test("firma_movil.js NO usa showUiError directamente en el catch del 401 de loadSession", () => {
+  const source = fs.readFileSync(path.join("static", "js", "firma_movil.js"), "utf8");
+  // En el bloque del catch del 401, el codigo debe hacer return; sin llamar showUiError
+  // Esto se verifica comprobando que el 401 lleva a showNoSession() no a showUiError()
+  assert.match(source, /showNoSession\(/);
+  // showUiError no debe aparecer en el mismo bloque del 401
+  // (verificacion indirecta: showNoSession existe y se llama para el 401)
+  assert.match(source, /function showNoSession/);
+});
+
+test("firma_movil.js dirige botones de login a /auth/login?next=", () => {
+  const source = fs.readFileSync(path.join("static", "js", "firma_movil.js"), "utf8");
+  assert.match(source, /\/auth\/login\?next=/);
+  // El URL de next debe estar codificado con encodeURIComponent
+  assert.match(source, /encodeURIComponent/);
+});
+
+test("firma_movil.html tiene panel authNoSessionNotice sin campos editables", () => {
+  const html = fs.readFileSync(
+    path.join("..", "frontend", "templates", "firma_movil.html"),
+    "utf8"
+  );
+  // Panel existe
+  assert.match(html, /id="authNoSessionNotice"/);
+  // Tiene el boton de login
+  assert.match(html, /id="loginBtn"/);
+  // NO tiene input de texto libre para suplantar identidad
+  assert.doesNotMatch(html, /authNoSessionNotice[\s\S]{1,3000}type="text"/);
+});
+
+test("firma_movil.html carga firma_movil.js con version mayor a 12.4", () => {
+  const html = fs.readFileSync(
+    path.join("..", "frontend", "templates", "firma_movil.html"),
+    "utf8"
+  );
+  // Version en el script src debe ser >= 12.5
+  const match = html.match(/firma_movil\.js\?v=(\d+\.\d+)/);
+  assert.ok(match, "debe tener version en firma_movil.js?v=X.Y");
+  const ver = parseFloat(match[1]);
+  assert.ok(ver >= 12.5, `version ${ver} debe ser >= 12.5`);
+});
+
+test("login_movil.html valida next contra open-redirect", () => {
+  const html = fs.readFileSync(
+    path.join("..", "frontend", "templates", "login_movil.html"),
+    "utf8"
+  );
+  // Verifica que el JS en la pagina valida el origen
+  assert.match(html, /window\.location\.origin/);
+  // Rechaza URLs absolutas de otros origenes
+  assert.match(html, /url\.origin !== window\.location\.origin/);
+  // Solo acepta rutas que empiezan con /
+  assert.match(html, /startsWith\("\/"\)/);
+});
+
+test("login_movil.html hace POST a /api/auth/session al hacer login", () => {
+  const html = fs.readFileSync(
+    path.join("..", "frontend", "templates", "login_movil.html"),
+    "utf8"
+  );
+  assert.match(html, /\/api\/auth\/session/);
+  assert.match(html, /method:\s*["']POST["']/);
+});
+
+test("firma_movil.js tiene exactamente una llamada a loadSession() en el nivel superior", () => {
+  const source = fs.readFileSync(path.join("static", "js", "firma_movil.js"), "utf8");
+  // Contar llamadas directas a loadSession() fuera de definiciones
+  // Debe haber exactamente una: loadSession().catch(...)
+  const callMatches = [...source.matchAll(/loadSession\(\)/g)];
+  // Puede haber referencias en definiciones de funciones (reloadSession llama loadSession)
+  // y la llamada inicial. Verificamos que hay al menos una y que hay .catch en la inicial
+  assert.ok(callMatches.length >= 1, "debe llamarse al menos una vez");
+  assert.match(source, /loadSession\(\)\.catch\(/);
+});

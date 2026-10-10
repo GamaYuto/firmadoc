@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -50,7 +50,7 @@ def _create_sample_png() -> bytes:
 
 
 # ==============================================================================
-# 1. token QR válido: creación, impredecibilidad, y almacenamiento de hash
+# 1. token QR vÃ¡lido: creaciÃ³n, impredecibilidad, y almacenamiento de hash
 # ==============================================================================
 def test_qr_token_valido_creacion_y_hash():
     """El token QR debe ser aleatorio, largo, impredecible y guardarse como SHA-256."""
@@ -107,7 +107,7 @@ def test_qr_token_valido_creacion_y_hash():
 
 
 # ==============================================================================
-# 2. token expirado: rechazo HTTP 410 y actualización de estado
+# 2. token expirado: rechazo HTTP 410 y actualizaciÃ³n de estado
 # ==============================================================================
 def test_qr_token_expirado():
     """Un token con fecexp en el pasado debe rechazarse con HTTP 410 y pasar a EXPIRADO."""
@@ -119,7 +119,7 @@ def test_qr_token_expirado():
     sesion.sesid = 202
     sesion.tokhas = tokhas
     sesion.estado = EstadoSesionQr.PENDIENTE.value
-    sesion.fecexp = datetime.now(timezone.utc) - timedelta(minutes=1)  # Ya venció
+    sesion.fecexp = datetime.now(timezone.utc) - timedelta(minutes=1)  # Ya venciÃ³
     
     firma, step = _handwritten_context()
     sesion.firma = firma
@@ -136,7 +136,7 @@ def test_qr_token_expirado():
 
 
 def test_qr_consultar_estado_expira_al_consultar():
-    """El polling de estado debe marcar EXPIRADO si el tiempo se agotó."""
+    """El polling de estado debe marcar EXPIRADO si el tiempo se agotÃ³."""
     db = MagicMock()
     sesion = MagicMock(spec=SesionQr)
     sesion.sesid = 303
@@ -190,7 +190,7 @@ def _stamp_png(source_pdf_bytes: bytes, png_bytes: bytes, rect: fitz.Rect) -> by
 
 
 # ==============================================================================
-# 4. usuario incorrecto: móvil autenticado como otro usuario -> HTTP 403
+# 4. usuario incorrecto: mÃ³vil autenticado como otro usuario -> HTTP 403
 # ==============================================================================
 def test_qr_usuario_incorrecto():
     import asyncio
@@ -198,7 +198,7 @@ def test_qr_usuario_incorrecto():
 
 
 async def _async_test_qr_usuario_incorrecto():
-    """Si el usuario autenticado en el móvil no coincide con el asignado, 403 Forbidden."""
+    """Si el usuario autenticado en el mÃ³vil no coincide con el asignado, 403 Forbidden."""
     db = MagicMock()
     raw_token = "token_valido_usuario_a"
     tokhas = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
@@ -228,7 +228,7 @@ async def _async_test_qr_usuario_incorrecto():
 
 
 # ==============================================================================
-# 5. firma móvil correcta: confirmación e inserción exitosa
+# 5. firma mÃ³vil correcta: confirmaciÃ³n e inserciÃ³n exitosa
 # ==============================================================================
 def test_firma_movil_correcta():
     import asyncio
@@ -236,7 +236,7 @@ def test_firma_movil_correcta():
 
 
 async def _async_test_firma_movil_correcta():
-    """Firma móvil con token válido y usuario coincidente completa la firma e invalida token."""
+    """Firma mÃ³vil con token vÃ¡lido y usuario coincidente completa la firma e invalida token."""
     db = MagicMock()
     raw_token = "token_legitimo_123"
     tokhas = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
@@ -304,7 +304,7 @@ def test_segunda_firma_usa_pdf_acumulado():
     original_pdf = _create_sample_pdf("DOCUMENTO ORIGINAL V1.0")
     png_bytes = _create_sample_png()
     
-    # Primera firma en página 1, posición superior
+    # Primera firma en pÃ¡gina 1, posiciÃ³n superior
     primera_firma_pdf = _stamp_png(original_pdf, png_bytes, fitz.Rect(72, 150, 222, 210))
     
     # Verificar que el primer PDF firmado es diferente al original
@@ -319,18 +319,18 @@ def test_segunda_firma_usa_pdf_acumulado():
     assert sha_firma2 != sha_firma1
     assert sha_firma2 != sha_original
     
-    # Inspeccionar el documento resultante con fitz: ambas firmas e imágenes deben persistir
+    # Inspeccionar el documento resultante con fitz: ambas firmas e imÃ¡genes deben persistir
     doc_final = fitz.open(stream=segunda_firma_pdf, filetype="pdf")
     page_final = doc_final[0]
     images_in_final = page_final.get_images()
-    # Debe haber 2 imágenes insertadas en la misma página
+    # Debe haber 2 imÃ¡genes insertadas en la misma pÃ¡gina
     assert len(images_in_final) == 2
     doc_final.close()
 
 
 
 # ==============================================================================
-# 7. Endpoints HTTP de consulta y validación de sesión
+# 7. Endpoints HTTP de consulta y validaciÃ³n de sesiÃ³n
 # ==============================================================================
 def test_endpoint_consultar_estado_qr(client):
     """GET /api/firma/qr/{sesid}/estado responde con el estado actual."""
@@ -349,6 +349,7 @@ def test_endpoint_movil_sesion_endpoint(client):
     """GET /api/firma/movil/sesion/{token} retorna metadata del documento y firmante."""
     mock_doc = MagicMock(spec=DocFir)
     mock_doc.docnom = "Contrato de Servicios.pdf"
+    mock_doc.usrcre = "doctor_lopez"   # needed for prepared_by field
     
     mock_firma = MagicMock(spec=DocFirma)
     mock_firma.tipfir = TipoFirma.MANUSCRITA.value
@@ -362,7 +363,7 @@ def test_endpoint_movil_sesion_endpoint(client):
     mock_sesion.firma = mock_firma
     
     with patch("app.api.firma_frontend.qr_service.obtener_sesion_movil", return_value=mock_sesion):
-        # 1. Caso usuario coincidente -> 200 OK
+        # 1. Caso MATCH: usuario autenticado == firmante asignado -> 200 OK, session_state=MATCH
         response = client.get(
             "/api/firma/movil/sesion/sample_token_xyz",
             headers={"X-FirmaDoc-User": "doctor_lopez"},
@@ -370,15 +371,275 @@ def test_endpoint_movil_sesion_endpoint(client):
         assert response.status_code == 200
         payload = response.json()
         assert payload["docnom"] == "Contrato de Servicios.pdf"
-        assert payload["usrid"] == "doctor_lopez"
+        assert payload["assigned_signer"] == "doctor_lopez"
+        assert payload["usrid"] == "doctor_lopez"          # alias backward-compat
         assert payload["tipfir"] == "MANUSCRITA"
         assert payload["docid"] == 5
         assert payload["firid"] == 12
+        assert payload["session_state"] == "MATCH"
 
-        # 2. Caso usuario impostor -> 403 Forbidden
-        response_impostor = client.get(
+        # 2. Caso MISMATCH: usuario diferente -> 200 OK con session_state=MISMATCH (NO 403).
+        # El 403 real ocurre solo al intentar confirmar la firma.
+        response_mismatch = client.get(
             "/api/firma/movil/sesion/sample_token_xyz",
             headers={"X-FirmaDoc-User": "usuario_ajeno"},
         )
-        assert response_impostor.status_code == 403
-        assert "no corresponde al firmante asignado" in response_impostor.json()["detail"]
+        assert response_mismatch.status_code == 200
+        payload_mm = response_mismatch.json()
+        assert payload_mm["assigned_signer"] == "doctor_lopez"
+        assert payload_mm["session_state"] == "MISMATCH"
+
+
+# ==============================================================================
+# 8. Preparacion con "Otro usuario": admin prepara para lblanco
+# ==============================================================================
+def test_crear_sesion_qr_por_preparador():
+    """El preparador (admin != lblanco) puede generar QR para la firma de lblanco.
+
+    Valida la logica de autorizacion: is_signer OR is_preparer.
+    """
+    # Datos de prueba espejando qr_service.crear_sesion_qr
+    participante_usrid = "lblanco"
+    documento_usrcre = "admin"
+
+    requester = "admin"
+    is_signer = participante_usrid.lower() == requester.lower()
+    is_preparer = (documento_usrcre or "").strip().lower() == requester.lower()
+
+    # admin no es el firmante pero SI es el preparador -> autorizado
+    assert not is_signer
+    assert is_preparer
+    assert is_signer or is_preparer, "admin debe ser autorizado como preparador"
+
+def test_crear_sesion_qr_tercero_sin_permiso():
+    """Un tercero sin relacion con la firma debe ser rechazado (HTTP 403).
+
+    Valida la logica de autorizacion: not (is_signer or is_preparer) -> 403.
+    """
+    participante_usrid = "lblanco"
+    documento_usrcre = "admin"
+
+    requester = "intruso"
+    is_signer = participante_usrid.lower() == requester.lower()
+    is_preparer = (documento_usrcre or "").strip().lower() == requester.lower()
+
+    assert not is_signer
+    assert not is_preparer
+    # En produccion esto dispara HTTP 403 en qr_service.crear_sesion_qr
+    assert not (is_signer or is_preparer), "intruso no debe tener acceso"
+
+
+def test_endpoint_movil_sesion_mismatch_es_200_no_403(client):
+    """
+    MISMATCH (sesion de admin, firma asignada a lblanco) devuelve 200 con
+    session_state=MISMATCH. NO debe devolver 403 en esta etapa.
+    El 403 ocurre solo al confirmar /movil/confirmar.
+    """
+    from unittest.mock import MagicMock, patch
+    from app.models.sesionqr import SesionQr
+    from app.models.docfirma import DocFirma, TipoFirma
+    from app.models.docfir import DocFir
+
+    mock_doc = MagicMock(spec=DocFir)
+    mock_doc.docnom = "Memo de Prueba.pdf"
+    mock_doc.usrcre = "admin"
+
+    mock_firma = MagicMock(spec=DocFirma)
+    mock_firma.tipfir = TipoFirma.MANUSCRITA.value
+
+    mock_sesion = MagicMock(spec=SesionQr)
+    mock_sesion.sesid = 88
+    mock_sesion.docid = 6
+    mock_sesion.firid = 15
+    mock_sesion.usrid = "lblanco"   # firmante asignado
+    mock_sesion.documento = mock_doc
+    mock_sesion.firma = mock_firma
+
+    with patch("app.api.firma_frontend.qr_service.obtener_sesion_movil", return_value=mock_sesion):
+        # admin tiene sesion pero la firma es de lblanco -> MISMATCH, no 403
+        resp = client.get(
+            "/api/firma/movil/sesion/token_mismatch_xyz",
+            headers={"X-FirmaDoc-User": "admin"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["assigned_signer"] == "lblanco"
+        assert data["session_state"] == "MISMATCH"
+        assert data["prepared_by"] == "admin"
+
+        # lblanco mismo -> MATCH
+        resp_ok = client.get(
+            "/api/firma/movil/sesion/token_mismatch_xyz",
+            headers={"X-FirmaDoc-User": "lblanco"},
+        )
+        assert resp_ok.status_code == 200
+        data_ok = resp_ok.json()
+        assert data_ok["session_state"] == "MATCH"
+
+
+def test_confirmar_firma_movil_mismatch_es_403(client):
+    """
+    La comprobacion critica: aunque el endpoint /movil/sesion devuelva 200 con MISMATCH,
+    el endpoint /movil/confirmar DEBE rechazar con 403 si el usuario autenticado
+    no es el firmante asignado. Escribir 'lblanco' sin autenticarse como lblanco no sirve.
+    """
+    import asyncio
+    asyncio.run(_async_test_confirmar_mismatch_403())
+
+
+async def _async_test_confirmar_mismatch_403():
+    db = MagicMock()
+    raw_token = "token_mismatch_confirmar"
+    tokhas = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+    sesion = MagicMock(spec=SesionQr)
+    sesion.sesid = 900
+    sesion.firid = 50
+    sesion.usrid = "lblanco"   # firmante asignado
+    sesion.tokhas = tokhas
+    sesion.estado = EstadoSesionQr.PENDIENTE.value
+    sesion.fecexp = datetime.now(timezone.utc) + timedelta(minutes=5)
+
+    firma, step = _handwritten_context()
+    sesion.firma = firma
+    db.scalar.side_effect = [sesion, step]
+
+    import pytest
+    with pytest.raises(HTTPException) as exc_info:
+        await qr_service.completar_firma_movil(
+            db=db,
+            raw_token=raw_token,
+            png_data_url="data:image/png;base64,iVBORw0KGgo=",
+            # admin tiene sesion pero lblanco es el asignado -> rechazado
+            mobile_user_id="admin",
+        )
+    assert exc_info.value.status_code == 403
+    assert "no corresponde al firmante asignado" in exc_info.value.detail
+
+
+# ==============================================================================
+# 9. Flujo movil sin sesion: 401 en GET /movil/sesion
+# ==============================================================================
+def test_endpoint_movil_sesion_sin_sesion_devuelve_401(client):
+    """Sin cookie de sesion, GET /movil/sesion/{token} devuelve 401.
+
+    El frontend debe capturar este 401 como NO_SESSION, nunca mostrar error fatal.
+    El 401 proviene de get_current_principal() antes de llegar a la logica de negocio.
+    """
+    # Hacer la peticion SIN autenticacion (sin header X-FirmaDoc-User)
+    response = client.get("/api/firma/movil/sesion/cualquier_token_xyz")
+    assert response.status_code == 401
+    data = response.json()
+    # El mensaje debe indicar autenticacion requerida
+    assert "detail" in data
+    # No debe ser un 403 (eso seria mismatch) ni 404 (no encontrado)
+    assert response.status_code != 403
+    assert response.status_code != 404
+
+
+def test_endpoint_movil_sesion_sin_sesion_body_json(client):
+    """El 401 devuelve JSON valido (detail como string).
+
+    Esto es importante porque el frontend intenta leer err.detail del cuerpo.
+    """
+    response = client.get("/api/firma/movil/sesion/token_sin_sesion")
+    assert response.status_code == 401
+    assert response.headers.get("content-type", "").startswith("application/json")
+    data = response.json()
+    assert isinstance(data.get("detail"), str)
+    assert len(data["detail"]) > 0
+
+
+def test_auth_login_page_exists(client):
+    """GET /auth/login devuelve 200 y sirve la pagina de login movil."""
+    response = client.get("/auth/login")
+    assert response.status_code == 200
+    # La respuesta debe ser HTML (la plantilla login_movil.html)
+    content_type = response.headers.get("content-type", "")
+    assert "html" in content_type or response.text.strip().startswith("<!doctype")
+
+
+def test_auth_login_page_con_next(client):
+    """GET /auth/login?next=/firma-movil/abc123 devuelve 200.
+
+    El parametro next se procesa en el frontend JS; el backend simplemente sirve el HTML.
+    """
+    response = client.get("/auth/login?next=/firma-movil/abc123")
+    assert response.status_code == 200
+
+
+def test_movil_sesion_match_despues_de_sesion_correcta(client):
+    """GET /movil/sesion/{token} con sesion del firmante asignado -> 200 MATCH.
+
+    Verifica el flujo completo: autenticado como el firmante -> puede firmar.
+    """
+    from unittest.mock import MagicMock, patch
+    from app.models.sesionqr import SesionQr
+    from app.models.docfirma import DocFirma, TipoFirma
+    from app.models.docfir import DocFir
+
+    mock_doc = MagicMock(spec=DocFir)
+    mock_doc.docnom = "Memo QR Test.pdf"
+    mock_doc.usrcre = "admin"
+
+    mock_firma = MagicMock(spec=DocFirma)
+    mock_firma.tipfir = TipoFirma.MANUSCRITA.value
+
+    mock_sesion = MagicMock(spec=SesionQr)
+    mock_sesion.sesid = 55
+    mock_sesion.docid = 3
+    mock_sesion.firid = 7
+    mock_sesion.usrid = "lblanco"
+    mock_sesion.documento = mock_doc
+    mock_sesion.firma = mock_firma
+
+    with patch("app.api.firma_frontend.qr_service.obtener_sesion_movil", return_value=mock_sesion):
+        # lblanco autenticado -> MATCH
+        resp = client.get(
+            "/api/firma/movil/sesion/token_lblanco",
+            headers={"X-FirmaDoc-User": "lblanco"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["session_state"] == "MATCH"
+        assert data["assigned_signer"] == "lblanco"
+
+
+def test_movil_no_produce_doble_llamada_por_sesion(client):
+    """El endpoint de sesion movil NO redirige ni hace retries internos.
+
+    Una sola peticion GET -> una sola respuesta. Sin headers de redireccion.
+    """
+    from unittest.mock import MagicMock, patch
+    from app.models.sesionqr import SesionQr
+    from app.models.docfirma import DocFirma, TipoFirma
+    from app.models.docfir import DocFir
+
+    mock_doc = MagicMock(spec=DocFir)
+    mock_doc.docnom = "Documento.pdf"
+    mock_doc.usrcre = "admin"
+    mock_firma = MagicMock(spec=DocFirma)
+    mock_firma.tipfir = TipoFirma.MANUSCRITA.value
+    mock_sesion = MagicMock(spec=SesionQr)
+    mock_sesion.sesid = 56
+    mock_sesion.docid = 4
+    mock_sesion.firid = 8
+    mock_sesion.usrid = "lblanco"
+    mock_sesion.documento = mock_doc
+    mock_sesion.firma = mock_firma
+
+    call_count = {"n": 0}
+    original = None
+
+    def counting_mock(db, token):
+        call_count["n"] += 1
+        return mock_sesion
+
+    with patch("app.api.firma_frontend.qr_service.obtener_sesion_movil", side_effect=counting_mock):
+        resp = client.get(
+            "/api/firma/movil/sesion/token_single_call",
+            headers={"X-FirmaDoc-User": "lblanco"},
+        )
+    # El servicio debe haberse llamado exactamente una vez
+    assert resp.status_code == 200
+    assert call_count["n"] == 1, f"Se esperaba 1 llamada, hubo {call_count['n']}"

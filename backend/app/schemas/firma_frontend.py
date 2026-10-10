@@ -221,10 +221,18 @@ class QrSessionStatusResponse(BaseModel):
 class MobileSessionDetail(BaseModel):
     token: str
     docnom: str
-    usrid: str
+    assigned_signer: str          # firmante asignado al token (siempre presente)
+    usrid: str                    # alias de assigned_signer, mantenido por compatibilidad
     tipfir: str
     docid: int
     firid: int
+    # Estado de la sesion respecto al usuario autenticado actualmente:
+    #   "MATCH"      -> usuario autenticado == firmante asignado, puede firmar
+    #   "MISMATCH"   -> hay sesion pero es de otro usuario
+    #   "NO_SESSION" -> no hay sesion activa en el dispositivo (401 previo)
+    session_state: str = "MATCH"
+    prepared_by: str = ""         # usuario que preparo/genero el QR (informativo)
+    current_user: str = ""        # usuario autenticado en la sesion actual
 
 
 class MobileSignatureConfirm(BaseModel):
