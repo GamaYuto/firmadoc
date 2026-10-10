@@ -93,8 +93,19 @@ function bindControls() {
   });
   confirmButton.addEventListener("click", confirmSignature);
   openQrButton?.addEventListener("click", openQrModal);
+  document.querySelector("#headerQrTriggerBtn")?.addEventListener("click", openQrModal);
   closeQrModal?.addEventListener("click", closeQrModalView);
   cancelQrButton?.addEventListener("click", closeQrModalView);
+
+  const toggleCompanionBtn = document.querySelector("#toggleCompanionBtn");
+  const companionBody = document.querySelector("#companionBody");
+  if (toggleCompanionBtn && companionBody) {
+    toggleCompanionBtn.addEventListener("click", () => {
+      const isHidden = companionBody.hidden;
+      companionBody.hidden = !isHidden;
+      toggleCompanionBtn.textContent = isHidden ? "Minimizar" : "Maximizar";
+    });
+  }
 }
 
 
@@ -112,6 +123,16 @@ async function loadSignature() {
       ? "Firma interna"
       : "Firma manuscrita";
   localResultPdfUrl = `/api/firma/firmas/${firid}/resultado/pdf`;
+
+  const headerSignerDisplay = document.querySelector("#headerSignerDisplay");
+  const headerUserDisplay = document.querySelector("#headerUserDisplay");
+  const headerAvatarDisplay = document.querySelector("#headerAvatarDisplay");
+  if (headerSignerDisplay && detail.signer_name) headerSignerDisplay.textContent = detail.signer_name;
+  if (headerUserDisplay && detail.signer_user) headerUserDisplay.textContent = `${detail.signer_user} · Usuario institucional`;
+  if (headerAvatarDisplay && detail.signer_name) {
+    const initials = detail.signer_name.split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+    if (initials) headerAvatarDisplay.textContent = initials;
+  }
 
   sourcePdfUrl = `/api/alfresco/nodes/${detail.node_id}/content`;
   if (isManagerApprovalFlow(detail)) {
@@ -501,6 +522,15 @@ async function openQrModal() {
     if (qrPollingInterval) clearInterval(qrPollingInterval);
     qrPollingInterval = window.setInterval(pollQrStatus, 2500);
 
+    const companionDrawer = document.querySelector("#mobileCompanionDrawer");
+    if (companionDrawer) {
+      companionDrawer.hidden = false;
+      const badge = document.querySelector("#companionStatusBadge");
+      const text = document.querySelector("#companionStatusText");
+      if (badge) badge.textContent = "Esperando conexión";
+      if (text) text.textContent = "Escanee el código QR desde su teléfono móvil.";
+    }
+
     qrModal.hidden = false;
     closeQrModal?.focus();
   } catch (error) {
@@ -531,14 +561,30 @@ async function pollQrStatus() {
       
     });
     qrPollingFailures = 0;
+    const badge = document.querySelector("#companionStatusBadge");
+    const text = document.querySelector("#companionStatusText");
+
+    if (statusData.estado === "ABIERTO") {
+      if (badge) badge.textContent = "Teléfono conectado";
+      if (text) text.textContent = "Dispositivo sincronizado. Esperando trazo en pantalla táctil...";
+    }
+
     if (statusData.estado === "USADO") {
+      if (badge) badge.textContent = "Firma recibida";
+      if (text) text.textContent = "✓ Trazo recibido exitosamente desde el móvil.";
       closeQrModalView();
       showAlert(alertBox, "success", "Firma capturada y confirmada exitosamente desde el móvil.");
       cleanupSignature();
       const result = await apiFetch(`/api/firma/firmas/${firid}/resultado`);
       await renderResult(result);
+      setTimeout(() => {
+        const drawer = document.querySelector("#mobileCompanionDrawer");
+        if (drawer) drawer.hidden = true;
+      }, 4000);
     } else if (statusData.estado === "EXPIRADO" || statusData.estado === "CANCELADO") {
       closeQrModalView();
+      const drawer = document.querySelector("#mobileCompanionDrawer");
+      if (drawer) drawer.hidden = true;
       showAlert(alertBox, "warning", "La sesión QR ha expirado o fue cancelada.");
     }
   } catch (err) {
