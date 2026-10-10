@@ -65,6 +65,19 @@ async function init() {
     onSelectionChange: (pos) => {
       currentPosition = pos;
       confirmPositionBtn.disabled = !pos;
+      const posInfoEl = document.querySelector("#positionInfo");
+      if (posInfoEl) {
+        if (pos) {
+          posInfoEl.innerHTML = `
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <span class="position-card-pill">Posición seleccionada · Página ${pos.pagina}</span>
+            </div>
+            <p class="position-card-text">Área asignada: X: ${Math.round(pos.posx)}pt · Y: ${Math.round(pos.posy)}pt (${Math.round(pos.ancho)}×${Math.round(pos.alto)} pt)</p>
+          `;
+        } else {
+          posInfoEl.innerHTML = '<p class="position-card-text">Seleccione o dibuje el área del documento donde se colocará la firma.</p>';
+        }
+      }
       updateWorkflowSteps();
     }
   });
@@ -81,8 +94,20 @@ function bindControls() {
     zoomInput.addEventListener("change", () => viewer.setZoom(Number(zoomInput.value)));
   }
 
+  document.querySelector("#backButton")?.addEventListener("click", () => {
+    if (returnUrl) {
+      window.location.href = returnUrl;
+    } else {
+      window.location.href = "/documentos";
+    }
+  });
+
   signerTypeRadios.forEach(radio => {
     radio.addEventListener("change", (e) => {
+      document.querySelectorAll(".signer-card").forEach(c => c.classList.remove("active"));
+      const parentCard = e.target.closest(".signer-card");
+      if (parentCard) parentCard.classList.add("active");
+
       if (e.target.value === "otro") {
         otherUserField.hidden = false;
       } else {
