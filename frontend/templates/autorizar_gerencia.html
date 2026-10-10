@@ -1,87 +1,135 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="h-100">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FirmaDoc | Autorizaci&oacute;n de Gerencia</title>
+    <title>FirmaDoc | Autorización de Gerencia — Clínica del Caribe</title>
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
-    <link rel="stylesheet" href="/static/css/firmadoc.css?v=13.9">
+    <link rel="stylesheet" href="/static/css/firmadoc.css?v=15.0">
+    <link rel="stylesheet" href="/static/css/firmadoc-theme.css?v=15.0">
   </head>
-  <body>
+  <body class="d-flex flex-column h-100">
+    <!-- BEGIN: Header Institucional -->
     <header class="app-header">
       <div class="brand-block">
-        <div class="brand">FirmaDoc</div>
-        <span class="brand-context">Autorizaci&oacute;n de Gerencia</span>
+        <div class="brand-institution">
+          <span class="brand-institution-text">Clínica del Caribe</span>
+        </div>
+        <div class="brand-divider" aria-hidden="true"></div>
+        <div class="brand">
+          <span class="brand-name">Firma<span class="brand-accent">Doc</span></span>
+          <span class="brand-context">| Autorización de Gerencia</span>
+        </div>
       </div>
-      <div class="header-meta">
-        <span class="status-pill">Revisi&oacute;n protegida</span>
-
+      <div class="header-right-area">
+        <span class="status-pill bg-light border text-muted">Revisión protegida</span>
+        <div class="badge-lab-mode status-pill lab-mode">
+          <span class="dot"></span>
+          <span>Modo Laboratorio</span>
+        </div>
       </div>
     </header>
+    <!-- END: Header Institucional -->
 
-    <main class="manager-approval-layout">
+    <!-- BEGIN: Layout Gerencia -->
+    <main class="manager-approval-layout flex-grow-1">
       <section class="manager-mobile-summary" aria-label="Resumen de autorizacion">
-        <span class="section-kicker">Autorizacion de Gerencia</span>
-        <h1>Autorizacion de Gerencia</h1>
-        <dl>
-          <dt>Documento</dt><dd data-mobile-document>Validando solicitud...</dd>
-          <dt>Solicitante</dt><dd data-mobile-requester></dd>
+        <span class="section-kicker">Autorización de Gerencia</span>
+        <h1 class="h5 fw-bold text-primary mb-2">Autorización de Gerencia</h1>
+        <dl class="mb-0">
+          <dt class="small text-muted">Documento</dt>
+          <dd data-mobile-document class="fw-semibold text-dark">Validando solicitud...</dd>
+          <dt class="small text-muted">Solicitante</dt>
+          <dd data-mobile-requester class="fw-semibold text-dark"></dd>
         </dl>
       </section>
 
       <section class="viewer-column" aria-label="Documento para autorizar">
         <div class="viewer-toolbar">
-          <div id="pageStatus" role="status"></div>
-          <label>Zoom
-            <select id="zoomSelect">
-              <option value="0.75">75%</option>
-              <option value="1" selected>100%</option>
-              <option value="1.5">150%</option>
-            </select>
-          </label>
+          <div id="pageStatus" role="status" class="viewer-page-status">Cargando documento</div>
+          <div class="viewer-zoom-controls">
+            <label class="m-0 d-flex align-items-center">
+              <span class="small text-muted me-1">Zoom:</span>
+              <select id="zoomSelect" class="viewer-zoom-select" aria-label="Nivel de zoom">
+                <option value="0.75">75%</option>
+                <option value="1" selected>100%</option>
+                <option value="1.5">150%</option>
+              </select>
+            </label>
+          </div>
+          <div class="viewer-doc-info d-none d-md-flex">
+            <svg width="14" height="14" fill="none" stroke="#00AFEF" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+            </svg>
+            <span>Visor PDF · Revisión y dictamen de Gerencia</span>
+          </div>
         </div>
         <div id="pdfContainer" class="pdf-scroll"></div>
       </section>
 
-      <aside class="manager-approval-panel">
+      <aside class="manager-approval-panel config-panel">
         <div id="alerts" aria-live="polite"></div>
-        <span class="section-kicker">Decisi&oacute;n requerida</span>
-        <h1>Autorizaci&oacute;n de Gerencia</h1>
-        <dl>
-          <dt>Documento</dt><dd id="documentName">Validando solicitud...</dd>
-          <dt>Solicitante</dt><dd id="requesterName"></dd>
-          <dt>Fecha</dt><dd id="requestedAt"></dd>
-          <dt>Autoriza</dt><dd id="managerName"></dd>
-          <dt>Cargo</dt><dd id="managerRole"></dd>
-        </dl>
-        <div class="manager-approval-actions">
-          <button id="authorizeButton" class="btn btn-primary" type="button" disabled>Autorizar</button>
-          <button id="rejectButton" class="btn btn-danger" type="button" disabled>No autorizar</button>
+        <div class="wizard-header">
+          <span class="section-kicker">Decisión requerida</span>
+          <h1 class="wizard-title">Autorización de Gerencia</h1>
+        </div>
+        <div class="wizard-body">
+          <section class="position-card">
+            <dl class="mb-0">
+              <dt class="small text-muted">Documento</dt>
+              <dd id="documentName" class="fw-bold text-dark">Validando solicitud...</dd>
+              <dt class="small text-muted">Solicitante</dt>
+              <dd id="requesterName" class="text-dark"></dd>
+              <dt class="small text-muted">Fecha de solicitud</dt>
+              <dd id="requestedAt" class="text-dark"></dd>
+              <dt class="small text-muted">Autoriza</dt>
+              <dd id="managerName" class="fw-semibold text-primary"></dd>
+              <dt class="small text-muted">Cargo</dt>
+              <dd id="managerRole" class="text-dark"></dd>
+            </dl>
+          </section>
+        </div>
+        <div class="manager-approval-actions p-3 border-top border-slate-100 bg-white mt-auto d-flex flex-column gap-2">
+          <button id="authorizeButton" class="btn btn-primary w-100 fw-bold" type="button" disabled>Autorizar</button>
+          <button id="rejectButton" class="btn btn-outline-danger w-100 fw-bold" type="button" disabled>No autorizar</button>
+          <p class="wizard-footer-note">FirmaDoc · Gestión documental segura · Clínica del Caribe</p>
         </div>
       </aside>
     </main>
+    <!-- END: Layout Gerencia -->
 
+    <!-- BEGIN: Footer Corporativo -->
+    <footer class="corporate-footer">
+      <div class="footer-brand-text">
+        <span>FirmaDoc · Gestión documental segura</span>
+        <span>•</span>
+        <span class="corp-name">Clínica del Caribe</span>
+      </div>
+    </footer>
+    <!-- END: Footer Corporativo -->
+
+    <!-- Modal Autenticación Gerencia -->
     <div id="authenticationModal" class="modal-backdrop-custom" role="dialog" aria-modal="true" aria-labelledby="authenticationTitle" hidden>
       <div class="modal-dialog-custom authentication-dialog">
         <div class="modal-header-custom">
-          <h3 id="authenticationTitle">Autenticaci&oacute;n requerida</h3>
+          <h3 id="authenticationTitle" class="m-0">Autenticación requerida</h3>
         </div>
         <form id="authenticationForm">
           <div class="modal-body-custom">
-            <p>Identif&iacute;quese para revisar esta solicitud de Gerencia.</p>
-            <div id="authenticationError" class="alert alert-danger" role="alert" hidden></div>
-            <div class="field">
-              <label for="authenticationUser">Usuario Alfresco</label>
-              <input id="authenticationUser" name="user_id" type="text" autocomplete="username" required>
+            <p class="small text-muted mb-3">Identifíquese para revisar esta solicitud de Gerencia.</p>
+            <div id="authenticationError" class="alert alert-danger small py-2" role="alert" hidden></div>
+            <div class="field mb-2">
+              <label for="authenticationUser" class="small fw-semibold mb-1 d-block">Usuario Alfresco</label>
+              <input id="authenticationUser" name="user_id" type="text" autocomplete="username" class="form-control form-control-sm" required>
             </div>
           </div>
           <div class="modal-footer-custom">
-            <button id="authenticationSubmit" class="btn btn-primary" type="submit">Continuar</button>
+            <button id="authenticationSubmit" class="btn btn-primary btn-sm" type="submit">Continuar</button>
           </div>
         </form>
       </div>
     </div>
 
-    <script type="module" src="/static/js/autorizar_gerencia.js?v=13.9"></script>
+    <script type="module" src="/static/js/autorizar_gerencia.js?v=15.0"></script>
   </body>
 </html>
