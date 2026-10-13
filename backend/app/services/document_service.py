@@ -158,7 +158,15 @@ class DocumentService:
                 except Exception as e:
                     logger.warning(f"Error eliminando archivo temporal {temp_path}: {e}")
 
-    def cancelar_proceso(self, db: Session, docid: int, motivo: str, usrmod: str | Any, ip: str) -> DocFir:
+    def cancelar_proceso(
+        self,
+        db: Session,
+        docid: int,
+        motivo: str,
+        usrmod: str | Any,
+        ip: str,
+        has_alfresco_perm: bool = False,
+    ) -> DocFir:
         try:
             if hasattr(usrmod, "user_id") and hasattr(usrmod, "is_admin"):
                 actor_user = usrmod.user_id
@@ -171,7 +179,8 @@ class DocumentService:
             if not docfir:
                 raise HTTPException(status_code=404, detail="Proceso no encontrado")
 
-            if actor_user != (docfir.usrcre or "").strip().lower() and not is_admin:
+            is_creator = actor_user == (docfir.usrcre or "").strip().lower()
+            if not is_creator and not is_admin and not has_alfresco_perm:
                 raise HTTPException(status_code=403, detail="No autorizado para cancelar este proceso")
 
             cancelable_states = (
