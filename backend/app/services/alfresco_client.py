@@ -104,6 +104,49 @@ class AlfrescoClient:
             except httpx.HTTPError as e:
                 self._handle_error(e)
 
+    async def can_user_modify_node(self, node_id: UUID, user_id: str) -> bool:
+        user_norm = (user_id or "").strip().lower()
+        if not user_norm:
+            return False
+        if user_norm in ("admin", "administrador"):
+            return True
+
+        url = f"{self.base_url}/nodes/{node_id}"
+        params = {"include": "permissions,allowableOperations"}
+        async with httpx.AsyncClient(auth=self.auth, timeout=self.timeout, verify=self.verify) as client:
+            try:
+                response = await client.get(url, params=params)
+                if response.status_code != 200:
+                    return False
+                data = response.json().get("entry", {})
+
+                allowable = data.get("allowableOperations", [])
+                mod_by = (data.get("modifiedByUser", {}).get("id") or "").strip().lower()
+                created_by = (data.get("createdByUser", {}).get("id") or "").strip().lower()
+                if user_norm in (mod_by, created_by):
+                    return True
+
+                permissions = data.get("permissions", {})
+                allowed_roles = {"sitecollaborator", "sitemanager", "editor", "collaborator", "coordinator", "contributor"}
+                for perm_list in (permissions.get("inherited", []), permissions.get("locallySet", [])):
+                    for item in perm_list:
+                        auth_id = (item.get("authorityId") or "").strip().lower()
+                        perm_name = (item.get("name") or "").strip().lower()
+                        access = (item.get("accessStatus") or "").upper()
+                        if access == "ALLOWED" and perm_name in allowed_roles:
+                            if auth_id == user_norm:
+                                return True
+                            if auth_id in ("group_gerencia", "group_site_clinica-del-caribe-sa_sitemanager", "group_site_clinica-del-caribe-sa_sitecollaborator"):
+                                return True
+
+                if "update" in allowable:
+                    return True
+
+                return False
+            except Exception as e:
+                logger.warning("Error al consultar permisos de nodo en Alfresco: %s", str(e))
+                return False
+
     async def download_node_content(self, node_id: UUID) -> Tuple[str, int, str]:
         url = f"{self.base_url}/nodes/{node_id}/content"
         
