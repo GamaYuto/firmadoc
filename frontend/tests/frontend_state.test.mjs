@@ -291,11 +291,59 @@ test("redirectToSignature usa el destino construido con returnUrl validada", () 
 test("modal solicita cambio explicito de identidad LAB", () => {
   const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
   const setUserHeader = source.match(/function setUserHeader\(userId\)\s*\{[\s\S]*?\n\}/)?.[0] || "";
-  assert.match(source, /await setSessionUser\(userId\)/);
+  assert.match(source, /await setSessionUser\(userId, password\)/);
   assert.match(setUserHeader, /authenticationUser\.value = cleanUser;/);
   assert.doesNotMatch(setUserHeader, /setSessionUser/);
   assert.doesNotMatch(source, /setSessionUser\(requestedUser\)/);
   assert.match(source, /suggestedUser: \(await getCurrentSession\(\)\)\?\.user_id \|\| initialParams\.get\("user"\) \|\| ""/);
+});
+
+test("template autorizar_gerencia.html contiene campos authenticationUser y authenticationPassword seguros", () => {
+  const html = fs.readFileSync(path.join("..", "frontend", "templates", "autorizar_gerencia.html"), "utf8");
+  assert.match(html, /id="authenticationUser"[\s\S]*?name="user_id"/);
+  assert.match(html, /id="authenticationPassword"[\s\S]*?name="password"[\s\S]*?type="password"/);
+  assert.match(html, /autocomplete="current-password"/);
+  assert.match(html, /required/);
+});
+
+test("setSessionUser envia password opcional sin romper compatibilidad", async () => {
+  const originalFetch = globalThis.fetch;
+  let capturedBody = null;
+  globalThis.fetch = async (url, options) => {
+    capturedBody = JSON.parse(options.body);
+    return new Response(JSON.stringify({ user_id: capturedBody.user_id, csrf_token: "csrf123" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  };
+
+  try {
+    // Con usuario y password
+    await setSessionUser("lblanco", "secret123");
+    assert.deepEqual(capturedBody, { user_id: "lblanco", password: "secret123" });
+
+    // Sin password (compatibilidad existente)
+    await setSessionUser("lblanco");
+    assert.deepEqual(capturedBody, { user_id: "lblanco" });
+    assert.equal("password" in capturedBody, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("flujo autorizar_gerencia.js valida password, no expone en URL y limpia tras exito o fallo", () => {
+  const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
+  // Validacion de password no vacio
+  assert.match(source, /if \(!password\) \{[\s\S]*?Ingrese su contraseña\.[\s\S]*?return;[\s\S]*?\}/);
+  // Limpieza de password tras exito
+  assert.match(source, /await setSessionUser\(userId, password\);[\s\S]*?authenticationPassword\.value = "";/);
+  // Limpieza y foco tras 401
+  assert.match(source, /if \(error\?\.status === 401\) \{[\s\S]*?Credenciales inválidas\.[\s\S]*?authenticationPassword\.value = "";[\s\S]*?authenticationPassword\.focus\(\);/);
+  // Password no se almacena en variables de estado ni URL
+  assert.doesNotMatch(source, /localStorage\.setItem\([^)]*password/);
+  assert.doesNotMatch(source, /sessionStorage\.setItem\([^)]*password/);
+  assert.doesNotMatch(source, /URLSearchParams\([^)]*password/);
+  assert.doesNotMatch(source, /console\.log\([^)]*password/);
 });
 
 
@@ -455,4 +503,65 @@ test("firma_movil.js tiene exactamente una llamada a loadSession() en el nivel s
   // y la llamada inicial. Verificamos que hay al menos una y que hay .catch en la inicial
   assert.ok(callMatches.length >= 1, "debe llamarse al menos una vez");
   assert.match(source, /loadSession\(\)\.catch\(/);
+});
+
+test("template autorizar_gerencia.html estructura móvil sin IDs duplicados y con acciones de decisión", () => {
+  const html = fs.readFileSync(path.join("..", "frontend", "templates", "autorizar_gerencia.html"), "utf8");
+  const requiredIds = [
+    "authorizeButton",
+    "rejectButton",
+    "documentName",
+    "requesterName",
+    "requestedAt",
+    "managerName",
+    "managerRole",
+    "pdfContainer",
+    "zoomSelect",
+    "pageStatus",
+    "expandDocButton",
+    "authenticationModal",
+    "authenticationUser",
+    "authenticationPassword",
+    "authenticationSubmit",
+  ];
+  for (const id of requiredIds) {
+    const regex = new RegExp(`id=["']${id}["']`, "g");
+    const matches = [...html.matchAll(regex)];
+    assert.equal(matches.length, 1, `El ID ${id} debe existir exactamente una vez en autorizar_gerencia.html`);
+  }
+  assert.match(html, /data-mobile-document/);
+  assert.match(html, /data-mobile-requester/);
+  assert.match(html, /<button[^>]+id=["']authorizeButton["']/);
+  assert.match(html, /<button[^>]+id=["']rejectButton["']/);
+});
+
+test("autorizar_gerencia.js soporta fit-width, modo ampliado y conserva endpoints", () => {
+  const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
+  assert.match(source, /toggleExpandedViewer/);
+  assert.match(source, /expandDocButton/);
+  assert.match(source, /viewer-expanded/);
+  assert.match(source, /viewer\.fitWidth/);
+  assert.match(source, /zoomSelect/);
+
+  // Endpoints conservados
+  assert.match(source, /\/api\/firma\/gerencia\/solicitud/);
+  assert.match(source, /\/api\/firma\/gerencia\/documento/);
+  assert.match(source, /\/api\/firma\/gerencia\/autorizar/);
+  assert.match(source, /\/api\/firma\/gerencia\/rechazar/);
+});
+
+test("firmadoc.css y firmadoc-theme.css aseguran visor util y scroll natural en movil", () => {
+  const css = fs.readFileSync(path.join("static", "css", "firmadoc.css"), "utf8");
+  const themeCss = fs.readFileSync(path.join("static", "css", "firmadoc-theme.css"), "utf8");
+
+  // Visor util con 58dvh y min-height razonable
+  assert.match(css, /\.manager-approval-layout \.pdf-scroll\s*\{[\s\S]*?height:\s*58dvh;/);
+  assert.match(css, /\.manager-approval-layout \.pdf-scroll\s*\{[\s\S]*?min-height:\s*380px;/);
+
+  // Modo ampliado pantalla completa
+  assert.match(css, /\.viewer-column\.viewer-expanded\s*\{[\s\S]*?position:\s*fixed/);
+
+  // Scroll natural en body móvil
+  assert.match(css, /body:has\(\.manager-approval-layout\)[\s\S]*?overflow-y:\s*auto/);
+  assert.match(themeCss, /body\.operational-body:has\(\.manager-approval-layout\)[\s\S]*?overflow-y:\s*auto/);
 });
