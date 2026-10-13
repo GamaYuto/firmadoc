@@ -317,3 +317,33 @@ def test_iniciar_proceso_borra_temporal(client, base_url):
         client.post("/api/documentos/iniciar", json={"node_id": node_id}, headers={"X-FirmaDoc-User": "test"})
         assert len(unlinked) == 1
         assert not os.path.exists(unlinked[0])
+
+
+@respx.mock
+def test_cancelacion_proceso_permitida_a_colaborador_alfresco(client, base_url, db_session):
+    node_id = str(uuid4())
+    respx.get(f"{base_url}/nodes/{node_id}/content").mock(return_value=httpx.Response(200, content=_make_pdf_bytes("contrato.pdf")))
+    respx.get(f"{base_url}/nodes/{node_id}").mock(
+        return_value=httpx.Response(200, json={
+            "entry": {
+                "id": node_id,
+                "name": "contrato.pdf",
+                "isFile": True,
+                "content": {"mimeType": "application/pdf"},
+                "allowableOperations": ["update"],
+                "permissions": {
+                    "inherited": [{"authorityId": "u2", "name": "SiteCollaborator", "accessStatus": "ALLOWED"}],
+                    "locallySet": [],
+                },
+            }
+        })
+    )
+
+    # Creado por u1
+    resp_init = client.post("/api/documentos/iniciar", json={"node_id": node_id}, headers={"X-FirmaDoc-User": "u1"})
+    docid = resp_init.json()["docid"]
+
+    resp_cancel = client.post(f"/api/documentos/{docid}/cancelar", json={"motivo": "Reemplazado por secretaria"}, headers={"X-FirmaDoc-User": "u2"})
+    assert resp_cancel.status_code == 200
+    assert resp_cancel.json()["estado"] == "CANCELADO"
+    assert resp_cancel.json()["usrmod"] == "u2"
