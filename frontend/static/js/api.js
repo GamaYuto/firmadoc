@@ -22,11 +22,15 @@ export function setCsrfToken(token) {
   currentCsrfToken = token;
 }
 
-export async function setSessionUser(userId) {
+export async function setSessionUser(userId, password = undefined) {
+  const payload = { user_id: userId };
+  if (password !== undefined) {
+    payload.password = password;
+  }
   const response = await request("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify({ user_id: userId }),
+    body: JSON.stringify(payload),
     credentials: "same-origin",
   });
   if (!response.ok) {
