@@ -38,7 +38,10 @@ def create_session(
     except IdentityResolutionError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
-    roles = ("EMPLEADO",)
+    if snapshot.is_admin or snapshot.usrid.lower() in ("admin", "administrador"):
+        roles = ("ADMIN", "GESTOR", "EMPLEADO")
+    else:
+        roles = ("EMPLEADO",)
 
     principal = AuthenticatedPrincipal(
         user_id=snapshot.usrid,
@@ -109,11 +112,12 @@ async def exchange_sso_assertion(
     if snapshot.usrid != user_id:
         raise HTTPException(status_code=401, detail="La identidad de Share no coincide con la del directorio")
 
+    roles = ("ADMIN", "GESTOR", "EMPLEADO") if (snapshot.is_admin or snapshot.usrid.lower() in ("admin", "administrador")) else ("EMPLEADO",)
     principal = AuthenticatedPrincipal(
         user_id=snapshot.usrid,
         nombre_completo=snapshot.nomcom,
         correo=snapshot.correo,
-        roles=("EMPLEADO",),
+        roles=roles,
         is_authenticated=True,
     )
     redirect_url = f"/iniciar?nodeId={quote(str(claims.get('nid', '')))}&returnUrl={quote(str(claims.get('ret', '')), safe='')}"
