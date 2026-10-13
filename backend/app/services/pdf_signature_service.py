@@ -399,7 +399,7 @@ class PdfSignatureService:
         shape.finish(color=cyan, width=1.6)
         shape.commit(overlay=True)
 
-    def _render_manager_institutional_stamp(
+    def _render_institutional_stamp(
         self,
         page: fitz.Page,
         box: fitz.Rect,
@@ -437,18 +437,18 @@ class PdfSignatureService:
             content_right = effective_w - pad - 4.0
             content_w = content_right - content_left
 
-            top_h = 10.0
+            top_h = 11.0
             top_rect = fitz.Rect(content_left, pad + 2.0, content_right, pad + 2.0 + top_h)
             header_html = (
-                "<div style='margin:0;padding:0;font-family:Helvetica;font-size:6.5pt;line-height:1;text-align:left;'>"
+                "<div style='margin:0;padding:0;font-family:Helvetica;font-size:6.5pt;line-height:1;text-align:left;white-space:nowrap;'>"
                 "<span style='color:#00AFEF;font-size:7pt;'>&#9679;</span> "
                 "<span style='color:#08337B;font-weight:bold;letter-spacing:0.5px;'>VALIDADO POR FIRMADOC</span> "
                 "<span style='color:#696B6D;'>&middot; Cl&iacute;nica del Caribe</span>"
                 "</div>"
             )
-            stamp_page.insert_htmlbox(top_rect, header_html, scale_low=1.0, overlay=True)
+            stamp_page.insert_htmlbox(top_rect, header_html, scale_low=0.5, overlay=True)
 
-            bottom_h = 11.0
+            bottom_h = min(14.0, max(11.0, effective_h * 0.18))
             bottom_y = effective_h - pad - bottom_h - 2.0
 
             div_shape = stamp_page.new_shape()
@@ -456,14 +456,14 @@ class PdfSignatureService:
             div_shape.finish(color=(0.85, 0.85, 0.85), width=0.5)
             div_shape.commit(overlay=True)
 
-            code_rect = fitz.Rect(content_left, bottom_y + 2.0, content_right, effective_h - pad)
+            code_rect = fitz.Rect(content_left, bottom_y + 1.0, content_right, effective_h - pad)
             code_html = (
-                "<div style='margin:0;padding:0;font-family:Helvetica;font-size:6.5pt;line-height:1;text-align:left;'>"
+                "<div style='margin:0;padding:0;font-family:Helvetica;font-size:6.5pt;line-height:1.1;text-align:left;'>"
                 "<span style='color:#696B6D;'>C&oacute;digo de verificaci&oacute;n: </span>"
                 f"<span style='font-family:Courier,monospace;font-weight:bold;color:#08337B;font-size:7pt;'>{verification_code}</span>"
                 "</div>"
             )
-            stamp_page.insert_htmlbox(code_rect, code_html, scale_low=1.0, overlay=True)
+            stamp_page.insert_htmlbox(code_rect, code_html, scale_low=0.5, overlay=True)
 
             sig_top = pad + top_h + 3.0
             sig_bottom = bottom_y - 2.0
@@ -493,6 +493,8 @@ class PdfSignatureService:
             page.show_pdf_page(box, stamp_doc, pno=0, rotate=effective_rotation)
         finally:
             stamp_doc.close()
+
+    _render_manager_institutional_stamp = _render_institutional_stamp
 
     def _build_session_factory(self, db: Session) -> sessionmaker:
         bind = db.get_bind()
@@ -599,11 +601,17 @@ class PdfSignatureService:
                 if snapshot.tipfir == TipoFirma.MANUSCRITA.value:
                     assert image_meta is not None
                     assert signature_image_path is not None
-                    self._stamp_handwritten(page, insert_rect, image_meta, Path(signature_image_path), effective_rotation)
+                    self._render_institutional_stamp(
+                        page=page,
+                        box=insert_rect,
+                        opeid=snapshot.opeid,
+                        signature_image_path=Path(signature_image_path),
+                        effective_rotation=effective_rotation,
+                    )
                 elif snapshot.tipfir == TipoFirma.INTERNA.value:
                     if snapshot.step_type == "APROBAR" and snapshot.participant_usrid == "lblanco":
                         img_path = self._resolve_lblanco_signature_path()
-                        self._render_manager_institutional_stamp(
+                        self._render_institutional_stamp(
                             page=page,
                             box=insert_rect,
                             opeid=snapshot.opeid,
