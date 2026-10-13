@@ -565,3 +565,31 @@ test("firmadoc.css y firmadoc-theme.css aseguran visor util y scroll natural en 
   assert.match(css, /body:has\(\.manager-approval-layout\)[\s\S]*?overflow-y:\s*auto/);
   assert.match(themeCss, /body\.operational-body:has\(\.manager-approval-layout\)[\s\S]*?overflow-y:\s*auto/);
 });
+
+test("autorizar_gerencia incluye barra de lectura en voz alta con controles accesibles y sin modificar endpoints", () => {
+  const html = fs.readFileSync(path.join("..", "frontend", "templates", "autorizar_gerencia.html"), "utf8");
+  const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
+
+  const readAloudIds = [
+    "readAloudBar",
+    "readAloudPlayBtn",
+    "readAloudPauseBtn",
+    "readAloudStopBtn",
+    "readAloudStatus",
+    "readAloudPageIndicator",
+    "readAloudRateSelect",
+  ];
+  for (const id of readAloudIds) {
+    const regex = new RegExp(`id=["']${id}["']`, "g");
+    const matches = [...html.matchAll(regex)];
+    assert.equal(matches.length, 1, `El ID ${id} debe existir exactamente una vez en autorizar_gerencia.html`);
+  }
+
+  assert.match(html, /aria-live=["']polite["']/);
+  assert.match(html, /Utilice audífonos al consultar documentos confidenciales/);
+
+  assert.match(source, /import\s+\{[^}]*PdfReadAloud[^}]*\}\s+from\s+["']\.\/pdf-read-aloud\.js/);
+  assert.match(source, /stopAndCleanReader/);
+  assert.match(source, /speechSynthesis\.cancel/);
+});
+

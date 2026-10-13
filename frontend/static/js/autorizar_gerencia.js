@@ -2,6 +2,7 @@ import { apiFetch, apiFetchBinary, getCurrentSession, setBusy, setSessionUser } 
 import { PdfViewer } from "./pdf-viewer.js";
 import { showUiError } from "./ui-feedback.js?v=12.1";
 import { consumeApprovalToken } from "./manager-approval-token.js";
+import { PdfReadAloud, ReadAloudState } from "./pdf-read-aloud.js?v=17.0";
 
 const initialParams = new URLSearchParams(window.location.search);
 const rawToken = consumeApprovalToken(window.location, window.history);
@@ -19,7 +20,19 @@ const authenticationSubmit = document.querySelector("#authenticationSubmit");
 const zoomSelect = document.querySelector("#zoomSelect");
 const expandDocButton = document.querySelector("#expandDocButton");
 const viewerColumn = document.querySelector(".viewer-column");
+
+const readAloudBar = document.querySelector("#readAloudBar");
+const readAloudPlayBtn = document.querySelector("#readAloudPlayBtn");
+const readAloudPlayText = document.querySelector("#readAloudPlayText");
+const readAloudPauseBtn = document.querySelector("#readAloudPauseBtn");
+const readAloudStopBtn = document.querySelector("#readAloudStopBtn");
+const readAloudStatus = document.querySelector("#readAloudStatus");
+const readAloudPageIndicator = document.querySelector("#readAloudPageIndicator");
+const readAloudRateSelect = document.querySelector("#readAloudRateSelect");
+
 let viewer = null;
+let pdfReader = null;
+let readerListenersAttached = false;
 let pdfObjectUrl = null;
 let authRetryAction = null;
 let currentRequestDetail = null;
@@ -38,6 +51,147 @@ function setUserHeader(userId) {
 function disableApprovalActions() {
   authorizeButton.disabled = true;
   rejectButton.disabled = true;
+}
+
+function stopAndCleanReader() {
+  if (pdfReader) {
+    try {
+      pdfReader.stop();
+    } catch (_e) {}
+  }
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (_e) {}
+  }
+}
+
+function updateReaderUi(status) {
+  if (!readAloudStatus) return;
+
+  const { state, page, totalPages, message } = status;
+
+  if (readAloudPageIndicator) {
+    if (totalPages > 0) {
+      readAloudPageIndicator.textContent = `Página ${page || 1} de ${totalPages}`;
+    } else {
+      readAloudPageIndicator.textContent = "Página - de -";
+    }
+  }
+
+  switch (state) {
+    case ReadAloudState.IDLE:
+      readAloudStatus.textContent = "Listo para leer";
+      readAloudStatus.className = "read-aloud-status-badge badge-ready";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = true;
+      if (readAloudPlayText) readAloudPlayText.textContent = "Leer PDF";
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = true;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = true;
+      break;
+
+    case ReadAloudState.READY:
+      readAloudStatus.textContent = "Listo para leer";
+      readAloudStatus.className = "read-aloud-status-badge badge-ready";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = false;
+      if (readAloudPlayText) readAloudPlayText.textContent = "Leer PDF";
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = true;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = true;
+      break;
+
+    case ReadAloudState.PREPARING:
+      readAloudStatus.textContent = "Preparando texto";
+      readAloudStatus.className = "read-aloud-status-badge badge-active";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = true;
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = false;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = false;
+      break;
+
+    case ReadAloudState.READING:
+      readAloudStatus.textContent = `Leyendo página ${page} de ${totalPages}`;
+      readAloudStatus.className = "read-aloud-status-badge badge-active";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = true;
+      if (readAloudPlayText) readAloudPlayText.textContent = "Leer PDF";
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = false;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = false;
+      break;
+
+    case ReadAloudState.PAUSED:
+      readAloudStatus.textContent = "Pausado";
+      readAloudStatus.className = "read-aloud-status-badge badge-paused";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = false;
+      if (readAloudPlayText) readAloudPlayText.textContent = "Reanudar";
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = true;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = false;
+      break;
+
+    case ReadAloudState.COMPLETED:
+      readAloudStatus.textContent = "Lectura finalizada";
+      readAloudStatus.className = "read-aloud-status-badge badge-completed";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = false;
+      if (readAloudPlayText) readAloudPlayText.textContent = "Leer PDF";
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = true;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = true;
+      break;
+
+    case ReadAloudState.SCANNED_UNAVAILABLE:
+      readAloudStatus.textContent =
+        message || "Este documento no contiene texto seleccionable. La lectura en voz alta no está disponible para archivos escaneados.";
+      readAloudStatus.className = "read-aloud-status-badge badge-warning";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = true;
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = true;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = true;
+      break;
+
+    case ReadAloudState.UNAVAILABLE:
+      readAloudStatus.textContent = "Lectura no disponible";
+      readAloudStatus.className = "read-aloud-status-badge badge-unavailable";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = true;
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = true;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = true;
+      if (message) readAloudStatus.title = message;
+      break;
+
+    case ReadAloudState.ERROR:
+      readAloudStatus.textContent = "Error en lectura";
+      readAloudStatus.className = "read-aloud-status-badge badge-error";
+      if (readAloudPlayBtn) readAloudPlayBtn.disabled = false;
+      if (readAloudPlayText) readAloudPlayText.textContent = "Reintentar";
+      if (readAloudPauseBtn) readAloudPauseBtn.disabled = true;
+      if (readAloudStopBtn) readAloudStopBtn.disabled = true;
+      break;
+
+    default:
+      break;
+  }
+}
+
+function initReaderControls() {
+  if (readerListenersAttached) return;
+  readerListenersAttached = true;
+
+  readAloudPlayBtn?.addEventListener("click", async () => {
+    if (!pdfReader) return;
+    if (pdfReader.state === ReadAloudState.PAUSED) {
+      await pdfReader.resume();
+    } else {
+      await pdfReader.start();
+    }
+  });
+
+  readAloudPauseBtn?.addEventListener("click", () => {
+    if (!pdfReader) return;
+    pdfReader.pause();
+  });
+
+  readAloudStopBtn?.addEventListener("click", () => {
+    if (!pdfReader) return;
+    pdfReader.stop();
+  });
+
+  readAloudRateSelect?.addEventListener("change", (e) => {
+    if (!pdfReader) return;
+    pdfReader.setRate(Number(e.target.value));
+  });
 }
 
 async function toggleExpandedViewer() {
@@ -125,6 +279,19 @@ async function loadManagerRequest() {
       editable: false
     });
     await viewer.load(pdfObjectUrl, [], []);
+
+    initReaderControls();
+    if (!pdfReader) {
+      pdfReader = new PdfReadAloud({
+        pdfDoc: viewer.pdfDoc,
+        preferredLang: "es-CO",
+        rate: Number(readAloudRateSelect?.value) || 1.0,
+        onStateChange: updateReaderUi,
+      });
+    } else {
+      pdfReader.setDocument(viewer.pdfDoc);
+    }
+
     if (isMobileLayout()) {
       await viewer.fitWidth({ maxZoom: 1, horizontalPadding: 24 });
     }
@@ -139,6 +306,7 @@ async function loadManagerRequest() {
     authorizeButton.disabled = false;
     rejectButton.disabled = false;
   } catch (error) {
+    stopAndCleanReader();
     if (error?.status === 401) {
       await requestAuthentication({
         suggestedUser: (await getCurrentSession())?.user_id || initialParams.get("user") || "",
@@ -177,12 +345,14 @@ async function loadManagerRequest() {
 }
 
 function hideApprovalActions() {
+  stopAndCleanReader();
   authorizeButton.hidden = true;
   rejectButton.hidden = true;
   document.querySelector(".manager-approval-actions")?.setAttribute("hidden", "");
 }
 
 async function loadSignedPreview(firid) {
+  stopAndCleanReader();
   const pdfBlob = await apiFetchBinary(`/api/firma/firmas/${firid}/resultado/pdf`);
   if (pdfObjectUrl) {
     URL.revokeObjectURL(pdfObjectUrl);
@@ -364,5 +534,10 @@ function showCompleted(message) {
 }
 
 window.addEventListener("beforeunload", () => {
+  stopAndCleanReader();
   if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
+});
+
+window.addEventListener("pagehide", () => {
+  stopAndCleanReader();
 });

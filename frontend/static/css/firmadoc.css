@@ -1396,3 +1396,315 @@ body:has(.manager-approval-layout) {
     font-weight: 700;
   }
 }
+
+/* ==========================================================================
+   LECTURA EN VOZ ALTA (PDF.js + Web Speech API)
+   ========================================================================== */
+
+.read-aloud-bar {
+  background: #ffffff;
+  border-left: 1px solid var(--cdc-slate-200, #E2E8F0);
+  border-right: 1px solid var(--cdc-slate-200, #E2E8F0);
+  border-bottom: 1px solid var(--cdc-slate-200, #E2E8F0);
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: inherit;
+  z-index: 25;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.read-aloud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.read-aloud-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #08337B;
+}
+
+.read-aloud-title svg {
+  color: #00AFEF;
+}
+
+.read-aloud-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  background: #F1F5F9;
+  color: #696B6D;
+  border: 1px solid #D9D9D9;
+  transition: all 0.2s ease;
+}
+
+.read-aloud-status-badge.badge-ready {
+  background: #EBF8FE;
+  color: #08337B;
+  border-color: #00AFEF;
+}
+
+.read-aloud-status-badge.badge-active {
+  background: #E0F2FE;
+  color: #0369A1;
+  border-color: #38BDF8;
+  animation: pulse-read-aloud 2s infinite ease-in-out;
+}
+
+.read-aloud-status-badge.badge-paused {
+  background: #FEF3C7;
+  color: #92400E;
+  border-color: #FCD34D;
+}
+
+.read-aloud-status-badge.badge-completed {
+  background: #DCFCE7;
+  color: #166534;
+  border-color: #86EFAC;
+}
+
+.read-aloud-status-badge.badge-warning {
+  background: #FFFBEB;
+  color: #B45309;
+  border-color: #FDE68A;
+  font-weight: 500;
+  max-width: 100%;
+}
+
+.read-aloud-status-badge.badge-unavailable,
+.read-aloud-status-badge.badge-error {
+  background: #FEE2E2;
+  color: #991B1B;
+  border-color: #FCA5A5;
+}
+
+@keyframes pulse-read-aloud {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.read-aloud-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.read-aloud-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.read-aloud-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 32px;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.read-aloud-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.read-aloud-btn-play {
+  background: #08337B;
+  color: #FFFFFF;
+  border-color: #08337B;
+}
+
+.read-aloud-btn-play:hover:not(:disabled) {
+  background: #06265C;
+  border-color: #06265C;
+  color: #FFFFFF;
+}
+
+.read-aloud-btn-pause {
+  background: #FFFFFF;
+  color: #08337B;
+  border-color: #CBD5E1;
+}
+
+.read-aloud-btn-pause:hover:not(:disabled) {
+  background: #F8FAFC;
+  border-color: #00AFEF;
+  color: #08337B;
+}
+
+.read-aloud-btn-stop {
+  background: #FFFFFF;
+  color: #DC2626;
+  border-color: #FECACA;
+}
+
+.read-aloud-btn-stop:hover:not(:disabled) {
+  background: #FEF2F2;
+  border-color: #EF4444;
+  color: #B91C1C;
+}
+
+.read-aloud-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.read-aloud-page-indicator {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #696B6D;
+}
+
+.read-aloud-rate-label {
+  font-size: 0.8125rem;
+  color: #696B6D;
+}
+
+.read-aloud-rate-select {
+  padding: 2px 8px;
+  font-size: 0.8125rem;
+  border-radius: 4px;
+  border: 1px solid #CBD5E1;
+  background-color: #FFFFFF;
+  color: #08337B;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 28px;
+}
+
+.read-aloud-rate-select:focus {
+  outline: none;
+  border-color: #00AFEF;
+  box-shadow: 0 0 0 2px rgba(0, 175, 239, 0.2);
+}
+
+.read-aloud-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: #696B6D;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  line-height: 1.25;
+}
+
+.read-aloud-notice svg {
+  color: #00AFEF;
+  flex-shrink: 0;
+}
+
+/* Soporte para modo expandido (.viewer-expanded) */
+.viewer-column.viewer-expanded .read-aloud-bar {
+  background: #1E293B;
+  border-color: #334155;
+  color: #F8FAFC;
+}
+
+.viewer-column.viewer-expanded .read-aloud-title {
+  color: #FFFFFF;
+}
+
+.viewer-column.viewer-expanded .read-aloud-title svg {
+  color: #00AFEF;
+}
+
+.viewer-column.viewer-expanded .read-aloud-page-indicator,
+.viewer-column.viewer-expanded .read-aloud-rate-label span {
+  color: #94A3B8 !important;
+}
+
+.viewer-column.viewer-expanded .read-aloud-rate-select {
+  background-color: #0F172A;
+  color: #F8FAFC;
+  border-color: #475569;
+}
+
+.viewer-column.viewer-expanded .read-aloud-btn-play {
+  background: #00AFEF;
+  color: #08337B;
+  border-color: #00AFEF;
+  font-weight: 700;
+}
+
+.viewer-column.viewer-expanded .read-aloud-btn-play:hover:not(:disabled) {
+  background: #38BDF8;
+  color: #08337B;
+}
+
+.viewer-column.viewer-expanded .read-aloud-btn-pause {
+  background: #0F172A;
+  color: #F8FAFC;
+  border-color: #475569;
+}
+
+.viewer-column.viewer-expanded .read-aloud-btn-stop {
+  background: #0F172A;
+  color: #F87171;
+  border-color: #7F1D1D;
+}
+
+.viewer-column.viewer-expanded .read-aloud-notice {
+  background: #0F172A;
+  border-color: #334155;
+  color: #94A3B8;
+}
+
+/* En móvil */
+@media (max-width: 768px) {
+  .read-aloud-bar {
+    padding: 8px 10px;
+    gap: 8px;
+    border-radius: 0;
+  }
+
+  .read-aloud-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .read-aloud-action-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .read-aloud-action-buttons .read-aloud-btn {
+    width: 100%;
+    padding: 6px 4px;
+    font-size: 0.75rem;
+  }
+
+  .read-aloud-meta {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+

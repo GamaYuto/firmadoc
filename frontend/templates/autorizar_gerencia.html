@@ -76,6 +76,65 @@
             <span>Visor PDF · Revisión y dictamen de Gerencia</span>
           </div>
         </div>
+
+        <!-- LECTURA EN VOZ ALTA -->
+        <div id="readAloudBar" class="read-aloud-bar" aria-label="Lectura de documento en voz alta">
+          <div class="read-aloud-header">
+            <span class="read-aloud-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+              <span>LECTURA EN VOZ ALTA</span>
+            </span>
+            <div id="readAloudStatus" class="read-aloud-status-badge" role="status" aria-live="polite">Listo para leer</div>
+          </div>
+          <div class="read-aloud-controls">
+            <div class="read-aloud-action-buttons">
+              <button id="readAloudPlayBtn" type="button" class="btn btn-sm read-aloud-btn read-aloud-btn-play" disabled aria-label="Leer documento en voz alta" title="Leer documento en voz alta">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span id="readAloudPlayText">Leer PDF</span>
+              </button>
+              <button id="readAloudPauseBtn" type="button" class="btn btn-sm read-aloud-btn read-aloud-btn-pause" disabled aria-label="Pausar lectura" title="Pausar lectura">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <rect x="6" y="4" width="4" height="16"></rect>
+                  <rect x="14" y="4" width="4" height="16"></rect>
+                </svg>
+                <span>Pausar</span>
+              </button>
+              <button id="readAloudStopBtn" type="button" class="btn btn-sm read-aloud-btn read-aloud-btn-stop" disabled aria-label="Detener lectura" title="Detener lectura">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <rect x="5" y="5" width="14" height="14"></rect>
+                </svg>
+                <span>Detener</span>
+              </button>
+            </div>
+            <div class="read-aloud-meta">
+              <span id="readAloudPageIndicator" class="read-aloud-page-indicator text-muted small" aria-label="Progreso de página">Página - de -</span>
+              <label class="read-aloud-rate-label m-0 d-inline-flex align-items-center">
+                <span class="small text-muted me-1">Velocidad:</span>
+                <select id="readAloudRateSelect" class="read-aloud-rate-select" aria-label="Velocidad de reproducción">
+                  <option value="0.85">0.85x</option>
+                  <option value="1.0" selected>1.0x</option>
+                  <option value="1.15">1.15x</option>
+                  <option value="1.30">1.30x</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="read-aloud-notice" role="note">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>La lectura se reproducirá en este dispositivo. Utilice audífonos al consultar documentos confidenciales.</span>
+          </div>
+        </div>
+
         <div id="pdfContainer" class="pdf-scroll"></div>
       </section>
 
@@ -147,6 +206,6 @@
       </div>
     </div>
 
-    <script type="module" src="/static/js/autorizar_gerencia.js?v=16.0"></script>
+    <script type="module" src="/static/js/autorizar_gerencia.js?v=17.0"></script>
   </body>
 </html>
