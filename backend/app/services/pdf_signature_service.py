@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -18,6 +19,7 @@ except ImportError:  # pragma: no cover - fallback for older installs
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import settings
 from app.crud.crud_docfirma import crud_docfirma
 from app.models.docfirma import DocFirma, EstadoDocFirma, TipoFirma
 from app.models.docpart import DocPart
@@ -35,6 +37,7 @@ from app.services.signature_exceptions import (
 from app.services.signature_image_service import SignatureImageService, signature_image_service
 from app.services.signature_service import signature_service
 from app.services.temporary_artifact_service import TemporaryArtifactService, temporary_artifact_service
+from app.services.verification_code_service import encode_verification_code
 
 
 _BOGOTA = ZoneInfo("America/Bogota")
@@ -57,6 +60,7 @@ class _SignatureSnapshot:
     participant_rolpro: str
     step_type: str
     positions: tuple[Firpos, ...]
+    participant_usrid: str = ""
 
 
 class PdfSignatureService:
@@ -348,6 +352,148 @@ class PdfSignatureService:
             overlay=True,
         )
 
+    def _resolve_lblanco_signature_path(self) -> Path:
+        configured = (settings.FIRMADOC_LBLANCO_SIGNATURE_PATH or "").strip()
+        if configured:
+            p = Path(configured)
+            if p.exists() and p.is_file():
+                return p
+            raise SignaturePayloadError("Imagen de firma institucional no disponible")
+
+        candidates = [
+            Path("/var/lib/firmadoc/private/firma2.png"),
+            Path(os.path.expanduser("~/.firmadoc/private/firma2.png")),
+        ]
+        for candidate in candidates:
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        raise SignaturePayloadError("Imagen de firma institucional no disponible")
+
+    def _draw_institutional_bracket(
+        self,
+        stamp_page: fitz.Page,
+        w: float,
+        h: float,
+        pad: float,
+        arm_len: float,
+        bracket_x: float,
+        corner_r: float,
+    ) -> None:
+        cyan = (0.0, 0.686, 0.937)  # #00AFEF
+        shape = stamp_page.new_shape()
+        shape.draw_line(fitz.Point(bracket_x + arm_len, pad), fitz.Point(bracket_x + corner_r, pad))
+        shape.draw_bezier(
+            fitz.Point(bracket_x + corner_r, pad),
+            fitz.Point(bracket_x, pad),
+            fitz.Point(bracket_x, pad + corner_r),
+            fitz.Point(bracket_x, pad + corner_r),
+        )
+        shape.draw_line(fitz.Point(bracket_x, pad + corner_r), fitz.Point(bracket_x, h - pad - corner_r))
+        shape.draw_bezier(
+            fitz.Point(bracket_x, h - pad - corner_r),
+            fitz.Point(bracket_x, h - pad),
+            fitz.Point(bracket_x + corner_r, h - pad),
+            fitz.Point(bracket_x + corner_r, h - pad),
+        )
+        shape.draw_line(fitz.Point(bracket_x + corner_r, h - pad), fitz.Point(bracket_x + arm_len, h - pad))
+        shape.finish(color=cyan, width=1.6)
+        shape.commit(overlay=True)
+
+    def _render_manager_institutional_stamp(
+        self,
+        page: fitz.Page,
+        box: fitz.Rect,
+        opeid: UUID,
+        signature_image_path: Path,
+        effective_rotation: int = 0,
+    ) -> None:
+        effective_w = box.width if effective_rotation in (0, 180) else box.height
+        effective_h = box.height if effective_rotation in (0, 180) else box.width
+
+        if effective_w < 160 or effective_h < 50:
+            raise SignaturePlacementError("El area de firma es demasiado pequena para el sello institucional")
+
+        if not signature_image_path.exists() or not signature_image_path.is_file():
+            raise SignaturePayloadError("Imagen de firma institucional no disponible")
+
+        try:
+            self.image_validator.validate_png(signature_image_path)
+        except Exception as exc:
+            raise SignaturePayloadError("La imagen de firma institucional es invalida o corrupta") from exc
+
+        verification_code = encode_verification_code(opeid)
+
+        stamp_doc = fitz.open()
+        try:
+            stamp_page = stamp_doc.new_page(width=effective_w, height=effective_h)
+            pad = 3.0
+            arm_len = 14.0
+            bracket_x = pad + 1.5
+            corner_r = min(5.0, effective_h * 0.08)
+
+            self._draw_institutional_bracket(stamp_page, effective_w, effective_h, pad, arm_len, bracket_x, corner_r)
+
+            content_left = bracket_x + 20.0
+            content_right = effective_w - pad - 4.0
+            content_w = content_right - content_left
+
+            top_h = 10.0
+            top_rect = fitz.Rect(content_left, pad + 2.0, content_right, pad + 2.0 + top_h)
+            header_html = (
+                "<div style='margin:0;padding:0;font-family:Helvetica;font-size:6.5pt;line-height:1;text-align:left;'>"
+                "<span style='color:#00AFEF;font-size:7pt;'>&#9679;</span> "
+                "<span style='color:#08337B;font-weight:bold;letter-spacing:0.5px;'>VALIDADO POR FIRMADOC</span> "
+                "<span style='color:#696B6D;'>&middot; Cl&iacute;nica del Caribe</span>"
+                "</div>"
+            )
+            stamp_page.insert_htmlbox(top_rect, header_html, scale_low=1.0, overlay=True)
+
+            bottom_h = 11.0
+            bottom_y = effective_h - pad - bottom_h - 2.0
+
+            div_shape = stamp_page.new_shape()
+            div_shape.draw_line(fitz.Point(content_left, bottom_y), fitz.Point(content_right, bottom_y))
+            div_shape.finish(color=(0.85, 0.85, 0.85), width=0.5)
+            div_shape.commit(overlay=True)
+
+            code_rect = fitz.Rect(content_left, bottom_y + 2.0, content_right, effective_h - pad)
+            code_html = (
+                "<div style='margin:0;padding:0;font-family:Helvetica;font-size:6.5pt;line-height:1;text-align:left;'>"
+                "<span style='color:#696B6D;'>C&oacute;digo de verificaci&oacute;n: </span>"
+                f"<span style='font-family:Courier,monospace;font-weight:bold;color:#08337B;font-size:7pt;'>{verification_code}</span>"
+                "</div>"
+            )
+            stamp_page.insert_htmlbox(code_rect, code_html, scale_low=1.0, overlay=True)
+
+            sig_top = pad + top_h + 3.0
+            sig_bottom = bottom_y - 2.0
+            sig_h = sig_bottom - sig_top
+            if sig_h > 10 and content_w > 20:
+                sig_box = fitz.Rect(content_left, sig_top, content_right, sig_bottom)
+                with fitz.open(signature_image_path) as img_doc:
+                    img_page = img_doc[0]
+                    img_w = float(img_page.rect.width)
+                    img_h = float(img_page.rect.height)
+                    scale = min(sig_box.width / img_w, sig_box.height / img_h)
+                    draw_w = img_w * scale
+                    draw_h = img_h * scale
+                    target_rect = fitz.Rect(
+                        sig_box.x0 + 4.0,
+                        sig_box.y0 + (sig_box.height - draw_h) / 2,
+                        sig_box.x0 + 4.0 + draw_w,
+                        sig_box.y0 + (sig_box.height - draw_h) / 2 + draw_h,
+                    )
+                    stamp_page.insert_image(
+                        target_rect,
+                        filename=str(signature_image_path),
+                        keep_proportion=True,
+                        overlay=True,
+                    )
+
+            page.show_pdf_page(box, stamp_doc, pno=0, rotate=effective_rotation)
+        finally:
+            stamp_doc.close()
+
     def _build_session_factory(self, db: Session) -> sessionmaker:
         bind = db.get_bind()
         if bind is None:
@@ -377,6 +523,7 @@ class PdfSignatureService:
             if not positions:
                 raise SignaturePayloadError("La firma no tiene posiciones congeladas")
 
+            participant_usrid = (participant.usrid or "").strip().lower()
             return _SignatureSnapshot(
                 firid=firma.firid,
                 docid=firma.docid,
@@ -390,6 +537,7 @@ class PdfSignatureService:
                 participant_rolpro=participant.rolpro,
                 step_type=step.pastip,
                 positions=positions,
+                participant_usrid=participant_usrid,
             )
         finally:
             read_db.close()
@@ -453,16 +601,26 @@ class PdfSignatureService:
                     assert signature_image_path is not None
                     self._stamp_handwritten(page, insert_rect, image_meta, Path(signature_image_path), effective_rotation)
                 elif snapshot.tipfir == TipoFirma.INTERNA.value:
-                    self._stamp_internal(
-                        page,
-                        insert_rect,
-                        snapshot.participant_nomcom,
-                        snapshot.participant_rolpro,
-                        snapshot.opeid,
-                        snapshot.hasori,
-                        effective_rotation,
-                        snapshot.step_type,
-                    )
+                    if snapshot.step_type == "APROBAR" and snapshot.participant_usrid == "lblanco":
+                        img_path = self._resolve_lblanco_signature_path()
+                        self._render_manager_institutional_stamp(
+                            page=page,
+                            box=insert_rect,
+                            opeid=snapshot.opeid,
+                            signature_image_path=img_path,
+                            effective_rotation=effective_rotation,
+                        )
+                    else:
+                        self._stamp_internal(
+                            page,
+                            insert_rect,
+                            snapshot.participant_nomcom,
+                            snapshot.participant_rolpro,
+                            snapshot.opeid,
+                            snapshot.hasori,
+                            effective_rotation,
+                            snapshot.step_type,
+                        )
                 else:
                     raise SignaturePayloadError("Tipo de firma no soportado")
 
