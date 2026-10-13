@@ -2,7 +2,7 @@ import { apiFetch, apiFetchBinary, getCurrentSession, setBusy, setSessionUser } 
 import { PdfViewer } from "./pdf-viewer.js";
 import { showUiError } from "./ui-feedback.js?v=12.1";
 import { consumeApprovalToken } from "./manager-approval-token.js";
-import { PdfReadAloud, ReadAloudState } from "./pdf-read-aloud.js?v=17.0";
+import { PdfReadAloud, ReadAloudState } from "./pdf-read-aloud.js?v=17.1";
 
 const initialParams = new URLSearchParams(window.location.search);
 const rawToken = consumeApprovalToken(window.location, window.history);

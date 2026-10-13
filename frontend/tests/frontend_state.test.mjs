@@ -600,7 +600,8 @@ test("autorizar_gerencia deshabilita y limpia el lector ante autorizacion, recha
   // Versionado estricto para evitar cache de estilos y scripts
   assert.match(html, /href=["']\/static\/css\/firmadoc\.css\?v=17\.0["']/);
   assert.match(html, /href=["']\/static\/css\/firmadoc-theme\.css\?v=17\.0["']/);
-  assert.match(html, /src=["']\/static\/js\/autorizar_gerencia\.js\?v=17\.0["']/);
+  assert.match(html, /src=["']\/static\/js\/autorizar_gerencia\.js\?v=17\.1["']/);
+  assert.match(source, /import\s+\{[^}]*PdfReadAloud[^}]*\}\s+from\s+["']\.\/pdf-read-aloud\.js\?v=17\.1["']/);
 
   // Implementación de disableAndCleanReader
   assert.match(source, /function disableAndCleanReader\(\)\s*\{/);
