@@ -521,3 +521,14 @@ def test_sso_exchange_fails_closed_when_disabled(monkeypatch):
     with TestClient(app) as client:
         response = client.post("/api/auth/sso/exchange", data={"assertion": _make_sso_assertion()})
         assert response.status_code == 403
+
+
+def test_session_create_admin_receives_admin_and_gestor_roles(monkeypatch):
+    monkeypatch.setattr(settings, "FIRMADOC_LAB_IDENTITY_ENABLED", True)
+    with TestClient(app) as client:
+        response = client.post("/api/auth/session", json={"user_id": "admin"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["user_id"] == "admin"
+        assert "ADMIN" in data["roles"]
+        assert "GESTOR" in data["roles"]
