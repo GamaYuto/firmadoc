@@ -494,3 +494,20 @@ def validate_return_url(url: str):
             return ValidatedUrlResponse(url=None)
     except Exception:
         return ValidatedUrlResponse(url=None)
+
+
+from app.services.verification_code_service import VerificationResult, verify_code
+
+@router.get("/verificar/{code}", response_model=VerificationResult)
+def verify_document_signature(
+    code: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Consulta de solo lectura para verificar un sello de firma electronica
+    a traves de su codigo de verificacion institucional FMD-...
+    """
+    result = verify_code(db, code)
+    if result.estado_verificacion == "NO_ENCONTRADO":
+        raise HTTPException(status_code=404, detail="Codigo de verificacion no encontrado o invalido")
+    return result
