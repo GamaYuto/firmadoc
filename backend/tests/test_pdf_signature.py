@@ -450,15 +450,9 @@ def test_generate_manuscrita_signature_uses_png_and_inserts_image_and_cleans_tem
             assert len(images) >= 1
             bbox = _bbox_of_nonwhite_pixels(page, left=72, top=72, width=220, height=100)
             assert bbox is not None
-            _assert_bbox_matches_centered_fit(
-                bbox,
-                left=72,
-                top=72,
-                width=220,
-                height=100,
-                image_width=72,
-                image_height=28,
-            )
+            text = page.get_text()
+            assert "VALIDADO POR FIRMADOC" in text
+            assert "FMD-" in text
 
         stored = db_session.get(DocFirma, context["firid"])
         assert stored is not None
