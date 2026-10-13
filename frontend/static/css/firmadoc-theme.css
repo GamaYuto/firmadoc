@@ -201,6 +201,48 @@ html, body {
   flex-shrink: 0;
 }
 
+@media (max-width: 768px) {
+  .app-header {
+    min-height: 56px;
+    height: auto;
+    padding: 0.5rem 0.875rem;
+    gap: 0.5rem;
+    box-sizing: border-box;
+  }
+
+  .brand-block {
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .brand-institution-text {
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .brand-divider {
+    height: 1.125rem;
+  }
+
+  .brand-name {
+    font-size: 0.95rem;
+  }
+
+  .brand-context {
+    font-size: 0.6875rem;
+  }
+
+  .header-right-area {
+    gap: 0.375rem;
+  }
+
+  .badge-lab-mode {
+    font-size: 0.6875rem;
+    padding: 0.2rem 0.5rem;
+  }
+}
+
 .badge-lab-mode {
   display: inline-flex;
   align-items: center;
@@ -292,6 +334,16 @@ html, body {
   overflow: hidden;
   margin: 0;
   padding: 0;
+}
+
+@media (max-width: 768px) {
+  body.operational-body:has(.manager-approval-layout) {
+    height: auto !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
 }
 
 /* ==========================================================================
@@ -446,7 +498,7 @@ html, body {
   min-width: 0;
   height: 100%;
   overflow: hidden;
-  background-color: var(--cdc-slate-100);
+  background-color: var(--cdc-slate-200);
 }
 
 .viewer-toolbar {
@@ -533,29 +585,32 @@ html, body {
 
 /* Área de scroll del documento */
 .pdf-scroll {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 28px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  gap: 28px;
+  background-color: var(--cdc-slate-200);
 }
 
 /* Hoja PDF */
 .pdf-page {
+  flex: 0 0 auto;
   position: relative;
+  margin: 0;
   background: var(--cdc-white);
-  border-radius: 0.75rem;
-  box-shadow: var(--cdc-shadow-sheet);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  margin-bottom: 1.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .pdf-page canvas {
   display: block;
-  border-radius: 0.75rem;
+  border-radius: 4px;
 }
 
 /* Cajas de firma overlay */
@@ -730,82 +785,107 @@ html, body {
   overflow-y: auto;
 }
 
-/* Sección "¿Quién debe firmar?" - Tarjetas Interactivas */
+/* Sección "¿Quién debe firmar?" - Tarjetas Interactivas Verticales */
 .signer-section-title {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--cdc-slate-800);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.625rem;
   display: block;
 }
 
-.signer-card {
-  border: 1px solid var(--cdc-slate-200);
-  border-radius: 0.75rem;
-  padding: 0.625rem 0.75rem;
-  background: var(--cdc-white);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
-  margin-bottom: 0.5rem;
-  position: relative;
-  width: 100%;
-  box-sizing: border-box;
+.signer-cards-grid,
+.field.signer-cards-grid,
+.field:has(input[name="signerType"]) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  width: 100% !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.signer-card,
+.field:has(input[name="signerType"]) label.signer-card {
+  width: 100% !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  padding: 12px 14px !important;
+  background: var(--cdc-white) !important;
+  border: 1.5px solid var(--cdc-slate-200) !important;
+  border-radius: 0.75rem !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+  box-shadow: var(--cdc-shadow-subtle) !important;
+  margin: 0 !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .signer-card:hover {
-  border-color: var(--cdc-slate-300);
-  box-shadow: var(--cdc-shadow-subtle);
+  border-color: var(--cdc-slate-300) !important;
+  box-shadow: var(--cdc-shadow-card) !important;
 }
 
 .signer-card.active,
-.signer-card:has(input[type="radio"]:checked) {
-  border: 2px solid var(--cdc-cyan);
-  background: rgba(0, 175, 239, 0.04);
-  box-shadow: 0 0 0 1px var(--cdc-cyan);
+.signer-card:has(input[type="radio"]:checked),
+.field:has(input[name="signerType"]) label.signer-card:has(input:checked) {
+  border-color: var(--cdc-cyan) !important;
+  background: rgba(0, 175, 239, 0.04) !important;
+  box-shadow: 0 0 0 1px var(--cdc-cyan) !important;
 }
 
 .signer-card-indicator {
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 50%;
-  border: 1px solid var(--cdc-slate-300);
+  border: 1.5px solid var(--cdc-slate-300);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-top: 0.1rem;
   flex-shrink: 0;
   background: var(--cdc-white);
+  color: transparent;
   transition: all 0.15s ease;
 }
 
 .signer-card.active .signer-card-indicator,
-.signer-card:has(input[type="radio"]:checked) .signer-card-indicator {
+.signer-card:has(input[type="radio"]:checked) .signer-card-indicator,
+.field:has(input[name="signerType"]) label.signer-card:has(input:checked) .signer-card-indicator {
   background: var(--cdc-cyan);
   border-color: var(--cdc-cyan);
   color: var(--cdc-white);
+  box-shadow: 0 0 0 2px rgba(0, 175, 239, 0.2);
 }
 
 .signer-card-body {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .signer-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.125rem;
+  gap: 8px;
+  margin-bottom: 0.25rem;
 }
 
 .signer-card-title {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--cdc-slate-800);
+  line-height: 1.25;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .signer-card.active .signer-card-title,
@@ -818,15 +898,19 @@ html, body {
   font-weight: 700;
   background: var(--cdc-blue-light);
   color: var(--cdc-blue);
-  padding: 0.1rem 0.4rem;
-  border-radius: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .signer-card-desc {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--cdc-slate-600);
-  line-height: 1.3;
+  line-height: 1.35;
   margin: 0;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 /* Tarjeta de información de Posición de Firma */
