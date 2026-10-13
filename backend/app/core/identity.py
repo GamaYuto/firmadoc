@@ -10,6 +10,7 @@ class IdentitySnapshot(BaseModel):
     correo: str
     rolpro: Optional[str] = None
     origen: Optional[str] = None
+    is_admin: bool = False
 
 class IdentityResolutionError(Exception):
     def __init__(self, message: str):
@@ -27,12 +28,14 @@ class FakeIdentityResolver(IdentityResolver):
         if canon_id == "unknown_user":
             raise IdentityResolutionError("Usuario no encontrado en el directorio falso")
         
+        is_admin = canon_id in ("admin", "administrador")
         return IdentitySnapshot(
             usrid=canon_id,
             nomcom=f"Usuario {canon_id.capitalize()}",
             correo=f"{canon_id}@empresa.local",
-            rolpro="Empleado",
-            origen="FakeDirectory"
+            rolpro="Administrador" if is_admin else "Empleado",
+            origen="FakeDirectory",
+            is_admin=is_admin,
         )
 
 class AlfrescoIdentityResolver(IdentityResolver):
@@ -47,8 +50,8 @@ class AlfrescoIdentityResolver(IdentityResolver):
             or "/alfresco/api/-default-/public/alfresco/versions/1"
         )
         url = f"{settings.ALFRESCO_BASE_URL.rstrip('/')}{api_path.rstrip('/')}/people/{canon_id}"
-        if password is not None:
-            auth = (canon_id, password)
+        if password and password.strip():
+            auth = (canon_id, password.strip())
         else:
             service_user = settings.ALFRESCO_USERNAME or settings.ALFRESCO_USER
             auth = (service_user, settings.ALFRESCO_PASSWORD) if service_user else None
@@ -66,13 +69,16 @@ class AlfrescoIdentityResolver(IdentityResolver):
                 nomcom = f"{data.get('firstName', '')} {data.get('lastName', '')}".strip() or canon_id
                 correo = data.get("email", f"{canon_id}@empresa.local")
                 rolpro = data.get("jobTitle") or "Empleado"
+                capabilities = data.get("capabilities", {})
+                is_admin = bool(capabilities.get("isAdmin", False)) or canon_id.lower() in ("admin", "administrador")
                 
                 return IdentitySnapshot(
                     usrid=canon_id,
                     nomcom=nomcom,
                     correo=correo,
                     rolpro=rolpro,
-                    origen="Alfresco"
+                    origen="Alfresco",
+                    is_admin=is_admin,
                 )
         except IdentityResolutionError:
             raise
