@@ -61,7 +61,7 @@ async def iniciar_proceso(
         handle_alfresco_exceptions(e, db, parsed_id, ip)
 
 @router.post("/{docid}/cancelar", response_model=DocFirRead)
-def cancelar_proceso(
+async def cancelar_proceso(
     docid: int,
     data: DocFirCancel,
     request: Request,
@@ -69,7 +69,33 @@ def cancelar_proceso(
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ):
     ip = request.client.host if request.client else ""
-    return doc_service.cancelar_proceso(db, docid, data.motivo, principal, ip)
+    docfir = get_by_id(db, docid)
+    if not docfir:
+        raise HTTPException(status_code=404, detail="Proceso no encontrado")
+
+    actor_user = principal.user_id.strip().lower()
+    is_admin = principal.is_admin
+    is_creator = actor_user == (docfir.usrcre or "").strip().lower()
+
+    has_alfresco_perm = False
+    if not is_creator and not is_admin:
+        if doc_service.alfresco_client and docfir.nodid:
+            try:
+                has_alfresco_perm = await doc_service.alfresco_client.can_user_modify_node(
+                    UUID(docfir.nodid),
+                    actor_user,
+                )
+            except Exception:
+                has_alfresco_perm = False
+
+    return doc_service.cancelar_proceso(
+        db,
+        docid,
+        data.motivo,
+        principal,
+        ip,
+        has_alfresco_perm=has_alfresco_perm,
+    )
 
 @router.get("/{docid}", response_model=DocFirRead)
 def obtener_proceso(
