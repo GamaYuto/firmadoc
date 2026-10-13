@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchBinary, getCurrentSession, setBusy, setSessionUser } from "./api.js?v=12.1";
+import { apiFetch, apiFetchBinary, getCurrentSession, setBusy, setSessionUser } from "./api.js?v=16.0";
 import { PdfViewer } from "./pdf-viewer.js";
 import { showUiError } from "./ui-feedback.js?v=12.1";
 import { consumeApprovalToken } from "./manager-approval-token.js";
@@ -13,13 +13,17 @@ const rejectButton = document.querySelector("#rejectButton");
 const authenticationModal = document.querySelector("#authenticationModal");
 const authenticationForm = document.querySelector("#authenticationForm");
 const authenticationUser = document.querySelector("#authenticationUser");
+const authenticationPassword = document.querySelector("#authenticationPassword");
 const authenticationError = document.querySelector("#authenticationError");
 const authenticationSubmit = document.querySelector("#authenticationSubmit");
 const zoomSelect = document.querySelector("#zoomSelect");
+const expandDocButton = document.querySelector("#expandDocButton");
+const viewerColumn = document.querySelector(".viewer-column");
 let viewer = null;
 let pdfObjectUrl = null;
 let authRetryAction = null;
 let currentRequestDetail = null;
+let isViewerExpanded = false;
 
 function isMobileLayout() {
   return window.matchMedia("(max-width: 768px)").matches;
@@ -35,6 +39,57 @@ function disableApprovalActions() {
   authorizeButton.disabled = true;
   rejectButton.disabled = true;
 }
+
+async function toggleExpandedViewer() {
+  if (!viewerColumn) return;
+  isViewerExpanded = !isViewerExpanded;
+  viewerColumn.classList.toggle("viewer-expanded", isViewerExpanded);
+  document.body.classList.toggle("viewer-expanded-active", isViewerExpanded);
+
+  const btnText = expandDocButton?.querySelector(".expand-btn-text");
+  if (isViewerExpanded) {
+    if (btnText) btnText.textContent = "Volver";
+    expandDocButton?.setAttribute("aria-label", "Volver a la solicitud");
+    if (viewer) {
+      await viewer.fitWidth({ maxZoom: 1.5, horizontalPadding: 16 });
+    }
+  } else {
+    if (btnText) btnText.textContent = "Ampliar documento";
+    expandDocButton?.setAttribute("aria-label", "Ampliar documento a pantalla completa");
+    if (viewer) {
+      if (zoomSelect?.value === "fit" || isMobileLayout()) {
+        await viewer.fitWidth({ maxZoom: 1, horizontalPadding: 24 });
+      } else if (zoomSelect) {
+        await viewer.setZoom(Number(zoomSelect.value));
+      }
+    }
+  }
+}
+
+if (expandDocButton) {
+  expandDocButton.addEventListener("click", () => {
+    toggleExpandedViewer().catch(console.error);
+  });
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isViewerExpanded) {
+    toggleExpandedViewer().catch(console.error);
+  }
+});
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(async () => {
+    if (!viewer) return;
+    if (isViewerExpanded) {
+      await viewer.fitWidth({ maxZoom: 1.5, horizontalPadding: 16 });
+    } else if (zoomSelect?.value === "fit" || isMobileLayout()) {
+      await viewer.fitWidth({ maxZoom: 1, horizontalPadding: 24 });
+    }
+  }, 150);
+});
 
 async function loadManagerRequest() {
   try {
@@ -73,8 +128,12 @@ async function loadManagerRequest() {
     if (isMobileLayout()) {
       await viewer.fitWidth({ maxZoom: 1, horizontalPadding: 24 });
     }
-    zoomSelect.addEventListener("change", (event) => {
-      viewer.setZoom(Number(event.target.value));
+    zoomSelect.addEventListener("change", async (event) => {
+      if (event.target.value === "fit") {
+        await viewer.fitWidth({ maxZoom: 1.25, horizontalPadding: isMobileLayout() ? 16 : 24 });
+      } else {
+        await viewer.setZoom(Number(event.target.value));
+      }
     });
 
     authorizeButton.disabled = false;
@@ -187,27 +246,42 @@ async function init() {
 function requestAuthentication({ suggestedUser = "", retryAction = null } = {}) {
   authRetryAction = typeof retryAction === "function" ? retryAction : null;
   authenticationUser.value = suggestedUser || "";
+  if (authenticationPassword) authenticationPassword.value = "";
   authenticationError.hidden = true;
   authenticationError.textContent = "";
   authenticationModal.hidden = false;
-  window.setTimeout(() => authenticationUser.focus(), 0);
+  window.setTimeout(() => {
+    if (authenticationUser.value.trim() && authenticationPassword) {
+      authenticationPassword.focus();
+    } else {
+      authenticationUser.focus();
+    }
+  }, 0);
 
   return new Promise((resolve) => {
     const handler = async (event) => {
       event.preventDefault();
       const userId = authenticationUser.value.trim();
+      const password = authenticationPassword ? authenticationPassword.value : "";
       if (!userId) {
         authenticationError.textContent = "Ingrese su usuario Alfresco.";
         authenticationError.hidden = false;
         authenticationUser.focus();
         return;
       }
+      if (!password) {
+        authenticationError.textContent = "Ingrese su contraseña.";
+        authenticationError.hidden = false;
+        if (authenticationPassword) authenticationPassword.focus();
+        return;
+      }
 
       try {
         authenticationError.hidden = true;
         setBusy(authenticationSubmit, true, "Autenticando...");
-        const session = await setSessionUser(userId);
+        const session = await setSessionUser(userId, password);
         setUserHeader(session?.user_id || userId);
+        if (authenticationPassword) authenticationPassword.value = "";
         authenticationModal.hidden = true;
         const nextAction = authRetryAction;
         authRetryAction = null;
@@ -216,8 +290,16 @@ function requestAuthentication({ suggestedUser = "", retryAction = null } = {}) 
           await nextAction();
         }
       } catch (error) {
-        authenticationError.textContent = error.message || "No fue posible autenticar el usuario.";
+        if (error?.status === 401) {
+          authenticationError.textContent = "Credenciales inválidas.";
+        } else {
+          authenticationError.textContent = error.message || "No fue posible autenticar el usuario.";
+        }
         authenticationError.hidden = false;
+        if (authenticationPassword) {
+          authenticationPassword.value = "";
+          authenticationPassword.focus();
+        }
       } finally {
         setBusy(authenticationSubmit, false);
       }
