@@ -447,3 +447,91 @@ def test_lblanco_stamp_rotations(db_session, tmp_path, monkeypatch, rotation):
             assert len(doc[0].get_images(full=True)) >= 1
     finally:
         artifact.cleanup()
+
+
+def test_handwritten_signature_generates_institutional_stamp_with_verification_code(db_session, tmp_path):
+    ctx = _seed_stamp_context(
+        db_session,
+        tmp_path,
+        usrid="dr_perez",
+        nomcom="Dr. Juan Perez",
+        rolpro="Medico Especialista",
+        step_type="FIRMAR",
+        width=220,
+        height=80,
+    )
+    # Switch to MANUSCRITA
+    firma = db_session.get(DocFirma, ctx["firid"])
+    firma.tipfir = TipoFirma.MANUSCRITA.value
+    db_session.commit()
+
+    temp_service = TemporaryArtifactService(base_dir=tmp_path / "artifacts")
+    # Generate a temporary handwritten PNG trace
+    trace_path = temp_service.write_bytes(
+        Path("C:/Users/Profesional Tics/.firmadoc/private/firma2.png").read_bytes(),
+        prefix="handwritten-",
+        suffix=".png",
+    )
+
+    service = PdfSignatureService(artifact_service=temp_service)
+    artifact = service.generate_signature_pdf_and_mark_generated(
+        db=db_session,
+        firid=ctx["firid"],
+        source_pdf_path=ctx["source_path"],
+        signature_image_path=trace_path,
+        usrmod="dr_perez",
+    )
+    db_session.commit()
+
+    try:
+        assert artifact.path.exists()
+        assert not trace_path.exists()  # Cleaned up
+        expected_code = encode_verification_code(ctx["opeid"])
+
+        with fitz.open(artifact.path) as doc:
+            page = doc[0]
+            text = page.get_text("text")
+            norm_text = unicodedata.normalize("NFKD", text)
+            plain_text = "".join(c for c in norm_text if not unicodedata.combining(c))
+
+            assert "VALIDADO POR FIRMADOC" in plain_text
+            assert "Clinica del Caribe" in plain_text
+            assert expected_code in plain_text
+            assert len(page.get_images(full=True)) >= 1
+    finally:
+        artifact.cleanup()
+
+
+def test_handwritten_signature_fails_when_box_is_too_small(db_session, tmp_path):
+    ctx = _seed_stamp_context(
+        db_session,
+        tmp_path,
+        usrid="dr_perez",
+        nomcom="Dr. Juan Perez",
+        rolpro="Medico Especialista",
+        step_type="FIRMAR",
+        width=120,
+        height=30,
+    )
+    firma = db_session.get(DocFirma, ctx["firid"])
+    firma.tipfir = TipoFirma.MANUSCRITA.value
+    db_session.commit()
+
+    temp_service = TemporaryArtifactService(base_dir=tmp_path / "artifacts")
+    trace_path = temp_service.write_bytes(
+        Path("C:/Users/Profesional Tics/.firmadoc/private/firma2.png").read_bytes(),
+        prefix="handwritten-",
+        suffix=".png",
+    )
+
+    service = PdfSignatureService(artifact_service=temp_service)
+    with pytest.raises(SignaturePlacementError):
+        service.generate_signature_pdf_and_mark_generated(
+            db=db_session,
+            firid=ctx["firid"],
+            source_pdf_path=ctx["source_path"],
+            signature_image_path=trace_path,
+            usrmod="dr_perez",
+        )
+    assert not trace_path.exists()
+
