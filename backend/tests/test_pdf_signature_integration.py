@@ -337,7 +337,7 @@ def test_pdf_gerencia_visual_compacto_cabe_en_firpos_y_mantiene_evidencia(db_ses
 
     try:
         with fitz.open(artifact.path) as document:
-            text = document[0].get_text()
+            text = unicodedata.normalize("NFKD", document[0].get_text())
         assert "LEONEL TARSICIO BLANCO BAHOQUE" in text
         assert "Representante legal" in text
         assert "Autorizado" in text
