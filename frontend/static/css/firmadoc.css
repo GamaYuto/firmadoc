@@ -131,7 +131,7 @@ body {
 
 .pdf-page {
   position: relative;
-  margin: 0 auto 18px;
+  margin: 0;
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 }
@@ -326,16 +326,6 @@ body {
   text-align: center;
 }
 
-.workflow-steps li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 13px;
-  height: 1px;
-  background: var(--fd-border);
-  z-index: 0;
-}
 
 .workflow-steps span {
   align-items: center;
@@ -368,29 +358,6 @@ body {
   margin: 18px 0 10px;
 }
 
-.signer-choice,
-.field:has(input[name="signerType"]) {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  padding: 4px;
-  background: #EEF2F5;
-  border-radius: 6px;
-}
-
-.field:has(input[name="signerType"]) label {
-  align-items: center;
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  gap: 7px;
-  justify-content: center;
-  margin: 0;
-  min-height: 38px;
-  padding: 6px;
-  text-align: center;
-}
 
 .manager-approval-layout {
   display: grid;
@@ -428,10 +395,6 @@ body {
 }
 
 @media (max-width: 900px) {
-  .field:has(input[name="signerType"]) {
-    grid-template-columns: 1fr;
-  }
-
   .manager-approval-layout {
     grid-template-columns: 1fr;
   }
@@ -440,12 +403,6 @@ body {
     border-left: 0;
     border-top: 1px solid var(--fd-border);
   }
-}
-
-.field:has(input[name="signerType"]) label:has(input:checked) {
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(20, 40, 59, 0.14);
-  color: var(--fd-blue);
 }
 
 .user-search-results {
@@ -1045,112 +1002,6 @@ body {
   margin: 6px 0 12px;
 }
 
-@media (max-width: 768px) {
-  .manager-approval-layout {
-    display: flex;
-    flex-direction: column;
-    min-height: auto;
-    width: 100%;
-  }
-
-  .manager-mobile-summary {
-    background: #fff;
-    border-bottom: 1px solid var(--fd-border);
-    display: block;
-    order: 0;
-    padding: 12px 14px;
-    width: 100%;
-  }
-
-  .manager-approval-layout .viewer-column {
-    order: 1;
-    min-height: 0;
-  }
-
-  .manager-approval-panel {
-    order: 2;
-    background: #fff;
-    border-left: 0;
-    border-top: 1px solid var(--fd-border);
-    padding: 14px;
-    width: 100%;
-  }
-
-  .manager-approval-panel h1 {
-    font-size: 20px;
-    line-height: 1.2;
-    margin: 4px 0 12px;
-  }
-
-  .manager-approval-panel > .section-kicker,
-  .manager-approval-panel > h1,
-  .manager-approval-panel > dl {
-    display: none;
-  }
-
-  .manager-approval-panel dl {
-    grid-template-columns: minmax(86px, 32%) minmax(0, 1fr);
-    margin-bottom: 0;
-  }
-
-  .manager-approval-panel dd {
-    margin-bottom: 4px;
-    min-width: 0;
-  }
-
-  .manager-approval-layout .pdf-scroll {
-    flex: 0 0 auto;
-    height: min(48vh, 420px);
-    min-height: 260px;
-    overflow: auto;
-    padding: 10px;
-    width: 100%;
-  }
-
-  .manager-approval-layout .pdf-page {
-    max-width: 100%;
-  }
-
-  .manager-approval-layout .viewer-toolbar {
-    min-height: 44px;
-    padding: 8px 12px;
-  }
-
-  .manager-approval-layout .viewer-toolbar label {
-    width: 100%;
-  }
-
-  .manager-approval-layout .viewer-toolbar select {
-    min-height: 36px;
-    width: 100%;
-  }
-
-  .modal-backdrop-custom {
-    align-items: flex-start;
-    overflow-y: auto;
-    padding: 12px;
-  }
-
-  .modal-dialog-custom {
-    max-height: calc(100vh - 24px);
-  }
-
-  .modal-body-custom {
-    overflow-y: auto;
-    padding: 16px;
-    text-align: left;
-  }
-
-  .modal-footer-custom {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .modal-footer-custom .btn {
-    min-height: 44px;
-    width: 100%;
-  }
-}
 /* Fixed work surfaces: scroll the PDF/document, not the whole site */
 html,
 body {
@@ -1190,32 +1041,6 @@ body:has(.manager-approval-layout) {
   min-height: 44px;
 }
 
-@media (max-width: 768px) {
-  body:has(.manager-approval-layout) {
-    overflow: hidden;
-  }
-
-  .manager-approval-layout {
-    height: calc(100vh - 67px);
-    overflow: hidden;
-  }
-
-  .manager-approval-layout .viewer-column {
-    flex: 1 1 auto;
-  }
-
-  .manager-approval-layout .pdf-scroll {
-    flex: 1 1 auto;
-    height: auto;
-    min-height: 0;
-  }
-
-  .manager-approval-panel {
-    flex: 0 0 auto;
-  }
-}
-
-
 /* Manager approval: bounded document viewport and stable mobile zoom control */
 .manager-approval-layout {
   height: calc(100vh - 64px);
@@ -1247,18 +1072,90 @@ body:has(.manager-approval-layout) {
 }
 
 @media (max-width: 768px) {
+  body:has(.manager-approval-layout),
+  body.operational-body:has(.manager-approval-layout) {
+    height: auto !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    display: flex;
+    flex-direction: column;
+  }
+
   .manager-approval-layout {
-    height: calc(100vh - 64px);
+    display: flex;
+    flex-direction: column;
+    height: auto !important;
+    min-height: auto !important;
+    overflow-y: visible !important;
+    overflow-x: hidden;
+    width: 100%;
+    flex: 1 0 auto;
+  }
+
+  .manager-mobile-summary {
+    background: #ffffff;
+    border-bottom: 1px solid var(--cdc-slate-200, #E2E8F0);
+    display: block;
+    order: 0;
+    padding: 12px 16px;
+    width: 100%;
+  }
+
+  .manager-summary-kicker {
+    font-size: 0.6875rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--cdc-cyan, #00AFEF);
+    margin-bottom: 8px;
+  }
+
+  .manager-summary-card {
+    background: var(--cdc-slate-50, #F8FAFC);
+    border: 1px solid var(--cdc-slate-200, #E2E8F0);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .summary-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--cdc-slate-600, #696B6D);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-bottom: 2px;
+  }
+
+  .summary-value {
+    font-size: 0.875rem;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+
+  .manager-approval-layout .viewer-column {
+    order: 1;
     min-height: 0;
+    overflow: visible;
+    width: 100%;
+    padding: 12px 14px;
+    box-sizing: border-box;
   }
 
   .manager-approval-layout .viewer-toolbar {
-    align-items: stretch;
-    display: grid;
-    flex: 0 0 auto;
-    grid-template-columns: 1fr;
-    min-height: 52px;
+    min-height: 48px;
     padding: 8px 12px;
+    background: #ffffff;
+    border: 1px solid var(--cdc-slate-200, #E2E8F0);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .manager-approval-layout .viewer-toolbar label {
@@ -1267,19 +1164,235 @@ body:has(.manager-approval-layout) {
     gap: 8px;
     grid-template-columns: auto minmax(96px, 1fr);
     margin: 0;
-    width: 100%;
+    width: auto;
   }
 
-  .manager-approval-layout .viewer-toolbar select {
+  .manager-approval-layout .viewer-toolbar select,
+  .manager-approval-layout .viewer-zoom-select {
     min-height: 36px;
-    min-width: 0;
-    width: 100%;
+    min-width: 110px;
+    font-size: 0.8125rem;
+    border-radius: 6px;
+    border: 1px solid var(--cdc-slate-300, #CBD5E1);
+    padding: 2px 8px;
+    background: #ffffff;
+  }
+
+  .viewer-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 4px 10px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 6px;
+    color: var(--cdc-blue, #08337B);
+    border: 1px solid var(--cdc-cyan, #00AFEF);
+    background: #ffffff;
+    transition: all 0.15s ease;
+  }
+
+  .viewer-expand-btn:hover {
+    background: var(--cdc-cyan-light, #EBF8FE);
+    color: var(--cdc-blue-dark, #06265c);
   }
 
   .manager-approval-layout .pdf-scroll {
-    flex: 1 1 auto;
-    height: auto;
-    min-height: 220px;
-    overflow: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    height: 58dvh;
+    min-height: 380px;
+    max-height: 65dvh;
+    overflow-y: auto;
+    overflow-x: auto;
+    overscroll-behavior: contain;
+    background: #cbd5e1;
+    border: 1px solid var(--cdc-slate-200, #E2E8F0);
+    border-radius: 0 0 8px 8px;
+    padding: 12px 8px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-sizing: border-box;
+  }
+
+  .manager-approval-layout .pdf-page {
+    max-width: 100%;
+    margin: 0 auto 16px auto;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+    border-radius: 2px;
+    background: #ffffff;
+  }
+
+  .manager-approval-layout .pdf-page:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Fullscreen expanded reading mode */
+  .viewer-column.viewer-expanded {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1050 !important;
+    background: var(--cdc-slate-900, #0F172A) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    width: 100vw !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .viewer-column.viewer-expanded .viewer-toolbar {
+    background: var(--cdc-slate-800, #1E293B);
+    color: #ffffff;
+    border: none;
+    border-bottom: 1px solid var(--cdc-slate-700, #334155);
+    border-radius: 0;
+    padding: 8px 16px;
+    min-height: 52px;
+  }
+
+  .viewer-column.viewer-expanded .viewer-page-status {
+    color: var(--cdc-slate-200, #E2E8F0);
+  }
+
+  .viewer-column.viewer-expanded .pdf-scroll {
+    flex: 1 1 auto !important;
+    height: calc(100dvh - 52px) !important;
+    max-height: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: var(--cdc-slate-900, #0F172A) !important;
+    padding: 16px 8px !important;
+  }
+
+  .manager-approval-panel {
+    order: 2;
+    background: #ffffff;
+    border-left: 0;
+    border-top: 1px solid var(--cdc-slate-200, #E2E8F0);
+    padding: 16px;
+    width: 100%;
+    overflow: visible;
+  }
+
+  .manager-approval-panel .wizard-header {
+    margin-bottom: 12px;
+  }
+
+  .manager-approval-panel .wizard-title {
+    font-size: 1.125rem;
+    font-weight: 800;
+    color: var(--cdc-slate-900, #0F172A);
+  }
+
+  .manager-approval-panel .position-card {
+    background: var(--cdc-slate-50, #F8FAFC);
+    border: 1px solid var(--cdc-slate-200, #E2E8F0);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+
+  .manager-approval-panel dl {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 8px 10px;
+    margin-bottom: 0;
+  }
+
+  .manager-approval-panel dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--cdc-slate-600, #696B6D);
+    text-transform: uppercase;
+  }
+
+  .manager-approval-panel dd {
+    font-size: 0.875rem;
+    margin-bottom: 0;
+    word-break: break-word;
+  }
+
+  .manager-approval-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 0 8px 0;
+    border-top: 1px solid var(--cdc-slate-200, #E2E8F0);
+    margin-top: 16px;
+    background: transparent;
+  }
+
+  .manager-approval-actions .btn {
+    min-height: 48px;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 8px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(8, 51, 123, 0.1);
+  }
+
+  #authorizeButton {
+    background: var(--cdc-blue, #08337B);
+    border-color: var(--cdc-blue, #08337B);
+    color: #ffffff;
+  }
+
+  #authorizeButton:hover:not(:disabled) {
+    background: var(--cdc-blue-dark, #06265c);
+    border-color: var(--cdc-blue-dark, #06265c);
+  }
+
+  #rejectButton {
+    background: #ffffff;
+    border: 1.5px solid var(--cdc-danger-600, #DC2626);
+    color: var(--cdc-danger-600, #DC2626);
+  }
+
+  #rejectButton:hover:not(:disabled) {
+    background: var(--cdc-danger-50, #FEF2F2);
+  }
+
+  .wizard-footer-note {
+    display: none !important;
+  }
+
+  .corporate-footer {
+    padding: 10px 16px;
+    background: var(--cdc-slate-100, #F1F5F9);
+    border-top: 1px solid var(--cdc-slate-200, #E2E8F0);
+    font-size: 0.6875rem;
+    text-align: center;
+    color: var(--cdc-slate-600, #696B6D);
+  }
+
+  .modal-backdrop-custom {
+    align-items: center;
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  .modal-dialog-custom.authentication-dialog {
+    max-width: 420px;
+    width: 100%;
+    margin: auto;
+    border-radius: 12px;
+  }
+
+  .modal-body-custom {
+    padding: 16px 20px;
+  }
+
+  .modal-footer-custom {
+    padding: 12px 20px 16px;
+  }
+
+  .modal-footer-custom .btn {
+    min-height: 46px;
+    width: 100%;
+    font-weight: 700;
   }
 }
