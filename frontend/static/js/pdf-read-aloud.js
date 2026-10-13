@@ -383,6 +383,10 @@ export class PdfReadAloud {
         }
 
         const pageText = await extractPageText(pageObj);
+        if (sessionId !== this._runSessionId || this.isStopped || this.isPaused) {
+          return;
+        }
+
         const chunks = splitTextIntoChunks(pageText);
 
         if (chunks.length === 0) {
@@ -422,6 +426,10 @@ export class PdfReadAloud {
         // Página concluida con éxito: avanzar a la siguiente
         this.currentPage += 1;
         this.currentChunkIndex = 0;
+      }
+
+      if (sessionId !== this._runSessionId || this.isStopped || this.isPaused) {
+        return;
       }
 
       // Si se recorrió todo el documento y no hubo texto en ninguna página

@@ -444,3 +444,47 @@ test("15. Finalización de lectura no activa automáticamente la autorización d
   // Escuchar el PDF no significa autorizarlo
   assert.equal(authorizationTriggered, false);
 });
+
+test("16. Interrupción durante extracción de texto asíncrona no emite estado COMPLETED tardío", async () => {
+  let extractResolve;
+  const delayedExtractPromise = new Promise((resolve) => {
+    extractResolve = resolve;
+  });
+
+  const delayedPdfDoc = {
+    numPages: 1,
+    async getPage() {
+      return {
+        async getTextContent() {
+          await delayedExtractPromise;
+          return { items: [] };
+        },
+      };
+    },
+  };
+
+  const synth = createMockSpeechSynthesis({ voices: SAMPLE_LOCAL_VOICES });
+  const recordedStates = [];
+
+  const reader = new PdfReadAloud({
+    pdfDoc: delayedPdfDoc,
+    speechSynthesis: synth,
+    SpeechSynthesisUtterance: MockSpeechSynthesisUtterance,
+    onStateChange: (st) => recordedStates.push(st.state),
+  });
+
+  const startPromise = reader.start();
+  assert.equal(reader.state, ReadAloudState.PREPARING);
+
+  // El usuario presiona Detener mientras se extrae el texto
+  reader.stop();
+  assert.equal(reader.state, ReadAloudState.READY);
+
+  // Se completa la extracción demorada
+  extractResolve();
+  await startPromise;
+
+  assert.equal(reader.state, ReadAloudState.READY);
+  assert.ok(!recordedStates.includes(ReadAloudState.COMPLETED));
+  assert.ok(!recordedStates.includes(ReadAloudState.SCANNED_UNAVAILABLE));
+});

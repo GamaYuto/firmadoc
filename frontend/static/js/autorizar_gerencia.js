@@ -66,6 +66,35 @@ function stopAndCleanReader() {
   }
 }
 
+function disableAndCleanReader() {
+  if (pdfReader) {
+    try {
+      pdfReader.dispose();
+    } catch (_e) {}
+    pdfReader = null;
+  }
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (_e) {}
+  }
+  if (readAloudPlayBtn) {
+    readAloudPlayBtn.disabled = true;
+    if (readAloudPlayText) readAloudPlayText.textContent = "Leer PDF";
+  }
+  if (readAloudPauseBtn) readAloudPauseBtn.disabled = true;
+  if (readAloudStopBtn) readAloudStopBtn.disabled = true;
+  if (readAloudRateSelect) readAloudRateSelect.disabled = true;
+  if (readAloudStatus) {
+    readAloudStatus.textContent = "Lectura finalizada";
+    readAloudStatus.className = "read-aloud-status-badge badge-completed";
+  }
+  if (readAloudBar) {
+    readAloudBar.hidden = true;
+    readAloudBar.setAttribute("hidden", "");
+  }
+}
+
 function updateReaderUi(status) {
   if (!readAloudStatus) return;
 
@@ -280,6 +309,12 @@ async function loadManagerRequest() {
     });
     await viewer.load(pdfObjectUrl, [], []);
 
+    if (readAloudBar) {
+      readAloudBar.hidden = false;
+      readAloudBar.removeAttribute("hidden");
+    }
+    if (readAloudRateSelect) readAloudRateSelect.disabled = false;
+
     initReaderControls();
     if (!pdfReader) {
       pdfReader = new PdfReadAloud({
@@ -306,7 +341,7 @@ async function loadManagerRequest() {
     authorizeButton.disabled = false;
     rejectButton.disabled = false;
   } catch (error) {
-    stopAndCleanReader();
+    disableAndCleanReader();
     if (error?.status === 401) {
       await requestAuthentication({
         suggestedUser: (await getCurrentSession())?.user_id || initialParams.get("user") || "",
@@ -345,14 +380,14 @@ async function loadManagerRequest() {
 }
 
 function hideApprovalActions() {
-  stopAndCleanReader();
+  disableAndCleanReader();
   authorizeButton.hidden = true;
   rejectButton.hidden = true;
   document.querySelector(".manager-approval-actions")?.setAttribute("hidden", "");
 }
 
 async function loadSignedPreview(firid) {
-  stopAndCleanReader();
+  disableAndCleanReader();
   const pdfBlob = await apiFetchBinary(`/api/firma/firmas/${firid}/resultado/pdf`);
   if (pdfObjectUrl) {
     URL.revokeObjectURL(pdfObjectUrl);
@@ -482,6 +517,7 @@ function requestAuthentication({ suggestedUser = "", retryAction = null } = {}) 
 init().catch((error) => showUiError(alertBox, error, { onRetry: init }));
 
 authorizeButton.addEventListener("click", async () => {
+  stopAndCleanReader();
   try {
     setBusy(authorizeButton, true, "Autorizando...");
     rejectButton.disabled = true;
@@ -503,6 +539,7 @@ authorizeButton.addEventListener("click", async () => {
 });
 
 rejectButton.addEventListener("click", async () => {
+  stopAndCleanReader();
   if (!window.confirm("Confirma que no autoriza este documento?")) return;
   try {
     setBusy(rejectButton, true, "Registrando...");
@@ -524,6 +561,7 @@ rejectButton.addEventListener("click", async () => {
 });
 
 function showCompleted(message) {
+  disableAndCleanReader();
   hideApprovalActions();
   alertBox.innerHTML = "";
   const notice = document.createElement("div");
@@ -534,10 +572,10 @@ function showCompleted(message) {
 }
 
 window.addEventListener("beforeunload", () => {
-  stopAndCleanReader();
+  disableAndCleanReader();
   if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
 });
 
 window.addEventListener("pagehide", () => {
-  stopAndCleanReader();
+  disableAndCleanReader();
 });
