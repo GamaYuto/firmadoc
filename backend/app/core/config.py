@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     FIRMADOC_GERENCIA_USER_ID: Optional[str] = None
     FIRMADOC_GERENCIA_CARGO: str = "Gerencia"
     FIRMADOC_GERENCIA_TOKEN_EXPIRE_MINUTES: int = 1440
+    FIRMADOC_LBLANCO_SIGNATURE_PATH: Optional[str] = None
     FIRMADOC_SSO_ENABLED: bool = False
     FIRMADOC_SSO_ISSUER: str = "alfresco-share"
     FIRMADOC_SSO_AUDIENCE: str = "firmadoc"
