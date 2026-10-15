@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import unicodedata
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 try:
     import pymupdf as fitz
@@ -348,14 +348,14 @@ def test_lblanco_stamp_fails_when_image_is_missing(db_session, tmp_path, monkeyp
     assert "Imagen de firma institucional no disponible" in str(excinfo.value)
 
 
-def test_lblanco_stamp_fails_when_box_is_too_small(db_session, tmp_path, monkeypatch):
+def test_lblanco_stamp_adapts_to_reduced_box(db_session, tmp_path, monkeypatch):
     ctx = _seed_stamp_context(
         db_session,
         tmp_path,
         usrid="lblanco",
         step_type="APROBAR",
-        width=100,  # too small (< 160)
-        height=30,  # too small (< 50)
+        width=100,  # reducida (< 160)
+        height=30,  # reducida (< 50)
     )
     sig_path = Path("C:/Users/Profesional Tics/.firmadoc/private/firma2.png")
     monkeypatch.setattr(settings, "FIRMADOC_LBLANCO_SIGNATURE_PATH", str(sig_path))
@@ -363,14 +363,40 @@ def test_lblanco_stamp_fails_when_box_is_too_small(db_session, tmp_path, monkeyp
     temp_service = TemporaryArtifactService(base_dir=tmp_path / "artifacts")
     service = PdfSignatureService(artifact_service=temp_service)
 
-    with pytest.raises(SignaturePlacementError) as excinfo:
-        service.generate_signature_pdf_and_mark_generated(
-            db=db_session,
-            firid=ctx["firid"],
-            source_pdf_path=ctx["source_path"],
-            usrmod="lblanco",
-        )
-    assert "area de firma es demasiado pequena" in str(excinfo.value)
+    artifact = service.generate_signature_pdf_and_mark_generated(
+        db=db_session,
+        firid=ctx["firid"],
+        source_pdf_path=ctx["source_path"],
+        usrmod="lblanco",
+    )
+    try:
+        assert artifact.path.exists()
+        with fitz.open(artifact.path) as doc:
+            page = doc[0]
+            text = page.get_text()
+            assert "FMD-" in text
+            assert "VALIDADO POR FIRMADOC" in text
+            assert len(page.get_images(full=True)) >= 1
+    finally:
+        artifact.cleanup()
+
+
+def test_institutional_stamp_fails_when_dimensions_are_not_positive(tmp_path):
+    sig_path = Path("C:/Users/Profesional Tics/.firmadoc/private/firma2.png")
+    temp_service = TemporaryArtifactService(base_dir=tmp_path / "artifacts")
+    service = PdfSignatureService(artifact_service=temp_service)
+    doc = fitz.open()
+    page = doc.new_page(width=300, height=300)
+    try:
+        with pytest.raises(SignaturePlacementError):
+            service._render_institutional_stamp(
+                page=page,
+                box=fitz.Rect(10, 10, 10, 50),  # width == 0
+                opeid=uuid4(),
+                signature_image_path=sig_path,
+            )
+    finally:
+        doc.close()
 
 
 def test_lblanco_stamp_multipage_only_on_target_page(db_session, tmp_path, monkeypatch):
@@ -502,7 +528,7 @@ def test_handwritten_signature_generates_institutional_stamp_with_verification_c
         artifact.cleanup()
 
 
-def test_handwritten_signature_fails_when_box_is_too_small(db_session, tmp_path):
+def test_handwritten_signature_adapts_to_reduced_box(db_session, tmp_path):
     ctx = _seed_stamp_context(
         db_session,
         tmp_path,
@@ -525,13 +551,107 @@ def test_handwritten_signature_fails_when_box_is_too_small(db_session, tmp_path)
     )
 
     service = PdfSignatureService(artifact_service=temp_service)
-    with pytest.raises(SignaturePlacementError):
-        service.generate_signature_pdf_and_mark_generated(
-            db=db_session,
-            firid=ctx["firid"],
-            source_pdf_path=ctx["source_path"],
-            signature_image_path=trace_path,
-            usrmod="dr_perez",
-        )
-    assert not trace_path.exists()
+    artifact = service.generate_signature_pdf_and_mark_generated(
+        db=db_session,
+        firid=ctx["firid"],
+        source_pdf_path=ctx["source_path"],
+        signature_image_path=trace_path,
+        usrmod="dr_perez",
+    )
+    try:
+        assert artifact.path.exists()
+        with fitz.open(artifact.path) as doc:
+            page = doc[0]
+            text = page.get_text()
+            assert "FMD-" in text
+            assert "VALIDADO POR FIRMADOC" in text
+            assert len(page.get_images(full=True)) >= 1
+    finally:
+        artifact.cleanup()
+
+
+@pytest.mark.parametrize(
+    "width,height",
+    [
+        (140, 30),  # Reducido horizontal
+        (100, 30),  # Compacto
+        (80, 25),   # Muy reducido
+        (60, 20),   # Pequeño
+        (200, 25),  # Marco ancho y bajo (side-by-side)
+        (70, 60),   # Marco vertical/cuadrado
+    ],
+)
+def test_stamp_adapts_to_multiple_box_dimensions_and_frames(db_session, tmp_path, monkeypatch, width, height):
+    # 1. Probar firma del gerente (APROBAR - lblanco)
+    ctx_mgr = _seed_stamp_context(
+        db_session,
+        tmp_path,
+        usrid="lblanco",
+        step_type="APROBAR",
+        width=width,
+        height=height,
+    )
+    sig_path = Path("C:/Users/Profesional Tics/.firmadoc/private/firma2.png")
+    monkeypatch.setattr(settings, "FIRMADOC_LBLANCO_SIGNATURE_PATH", str(sig_path))
+
+    temp_service = TemporaryArtifactService(base_dir=tmp_path / f"artifacts_mgr_{width}_{height}")
+    service = PdfSignatureService(artifact_service=temp_service)
+
+    artifact_mgr = service.generate_signature_pdf_and_mark_generated(
+        db=db_session,
+        firid=ctx_mgr["firid"],
+        source_pdf_path=ctx_mgr["source_path"],
+        usrmod="lblanco",
+    )
+    try:
+        assert artifact_mgr.path.exists()
+        with fitz.open(artifact_mgr.path) as doc:
+            page = doc[0]
+            text = page.get_text()
+            assert "FMD-" in text
+            assert "VALIDADO POR FIRMADOC" in text
+            assert len(page.get_images(full=True)) >= 1
+    finally:
+        artifact_mgr.cleanup()
+
+    # 2. Probar firma manuscrita (MANUSCRITA - dr_perez)
+    ctx_hw = _seed_stamp_context(
+        db_session,
+        tmp_path,
+        usrid="dr_perez",
+        nomcom="Dr. Juan Perez",
+        rolpro="Medico Especialista",
+        step_type="FIRMAR",
+        width=width,
+        height=height,
+    )
+    firma = db_session.get(DocFirma, ctx_hw["firid"])
+    firma.tipfir = TipoFirma.MANUSCRITA.value
+    db_session.commit()
+
+    temp_service_hw = TemporaryArtifactService(base_dir=tmp_path / f"artifacts_hw_{width}_{height}")
+    trace_path = temp_service_hw.write_bytes(
+        sig_path.read_bytes(),
+        prefix="handwritten-",
+        suffix=".png",
+    )
+    service_hw = PdfSignatureService(artifact_service=temp_service_hw)
+
+    artifact_hw = service_hw.generate_signature_pdf_and_mark_generated(
+        db=db_session,
+        firid=ctx_hw["firid"],
+        source_pdf_path=ctx_hw["source_path"],
+        signature_image_path=trace_path,
+        usrmod="dr_perez",
+    )
+    try:
+        assert artifact_hw.path.exists()
+        with fitz.open(artifact_hw.path) as doc:
+            page = doc[0]
+            text = page.get_text()
+            assert "FMD-" in text
+            assert "VALIDADO POR FIRMADOC" in text
+            assert len(page.get_images(full=True)) >= 1
+    finally:
+        artifact_hw.cleanup()
 
