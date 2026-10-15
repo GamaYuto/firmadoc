@@ -378,25 +378,28 @@ class PdfSignatureService:
         arm_len: float,
         bracket_x: float,
         corner_r: float,
+        stroke_width: float = 1.6,
     ) -> None:
         cyan = (0.0, 0.686, 0.937)  # #00AFEF
+        safe_h = max(h - 2 * pad, 0.1)
+        safe_r = min(corner_r, safe_h / 2.1, arm_len / 1.5)
         shape = stamp_page.new_shape()
-        shape.draw_line(fitz.Point(bracket_x + arm_len, pad), fitz.Point(bracket_x + corner_r, pad))
+        shape.draw_line(fitz.Point(bracket_x + arm_len, pad), fitz.Point(bracket_x + safe_r, pad))
         shape.draw_bezier(
-            fitz.Point(bracket_x + corner_r, pad),
+            fitz.Point(bracket_x + safe_r, pad),
             fitz.Point(bracket_x, pad),
-            fitz.Point(bracket_x, pad + corner_r),
-            fitz.Point(bracket_x, pad + corner_r),
+            fitz.Point(bracket_x, pad + safe_r),
+            fitz.Point(bracket_x, pad + safe_r),
         )
-        shape.draw_line(fitz.Point(bracket_x, pad + corner_r), fitz.Point(bracket_x, h - pad - corner_r))
+        shape.draw_line(fitz.Point(bracket_x, pad + safe_r), fitz.Point(bracket_x, h - pad - safe_r))
         shape.draw_bezier(
-            fitz.Point(bracket_x, h - pad - corner_r),
+            fitz.Point(bracket_x, h - pad - safe_r),
             fitz.Point(bracket_x, h - pad),
-            fitz.Point(bracket_x + corner_r, h - pad),
-            fitz.Point(bracket_x + corner_r, h - pad),
+            fitz.Point(bracket_x + safe_r, h - pad),
+            fitz.Point(bracket_x + safe_r, h - pad),
         )
-        shape.draw_line(fitz.Point(bracket_x + corner_r, h - pad), fitz.Point(bracket_x + arm_len, h - pad))
-        shape.finish(color=cyan, width=1.6)
+        shape.draw_line(fitz.Point(bracket_x + safe_r, h - pad), fitz.Point(bracket_x + arm_len, h - pad))
+        shape.finish(color=cyan, width=stroke_width)
         shape.commit(overlay=True)
 
     def _render_institutional_stamp(
@@ -410,8 +413,8 @@ class PdfSignatureService:
         effective_w = box.width if effective_rotation in (0, 180) else box.height
         effective_h = box.height if effective_rotation in (0, 180) else box.width
 
-        if effective_w < 160 or effective_h < 50:
-            raise SignaturePlacementError("El area de firma es demasiado pequena para el sello institucional")
+        if effective_w <= 0 or effective_h <= 0:
+            raise SignaturePlacementError("El area de firma debe tener ancho y alto positivos")
 
         if not signature_image_path.exists() or not signature_image_path.is_file():
             raise SignaturePayloadError("Imagen de firma institucional no disponible")
@@ -426,69 +429,137 @@ class PdfSignatureService:
         stamp_doc = fitz.open()
         try:
             stamp_page = stamp_doc.new_page(width=effective_w, height=effective_h)
-            pad = 3.0
-            arm_len = 14.0
-            bracket_x = pad + 1.5
-            corner_r = min(5.0, effective_h * 0.08)
+            pad = max(1.0, min(3.0, effective_h * 0.05))
+            avail_h = max(1.0, effective_h - 2 * pad)
+            corner_r = max(1.0, min(5.0, effective_h * 0.08))
+            arm_len = max(3.0, min(14.0, effective_w * 0.08))
+            bracket_x = pad + max(0.5, min(1.5, effective_w * 0.01))
+            stroke_width = max(0.6, min(1.6, effective_h * 0.025))
 
-            self._draw_institutional_bracket(stamp_page, effective_w, effective_h, pad, arm_len, bracket_x, corner_r)
-
-            content_left = bracket_x + 20.0
-            content_right = effective_w - pad - 4.0
-            content_w = content_right - content_left
-
-            top_h = 11.0
-            top_rect = fitz.Rect(content_left, pad + 2.0, content_right, pad + 2.0 + top_h)
-            header_html = (
-                "<div style='margin:0;padding:0;font-family:Helvetica;font-size:6.5pt;line-height:1;text-align:left;white-space:nowrap;'>"
-                "<span style='color:#00AFEF;font-size:7pt;'>&#9679;</span> "
-                "<span style='color:#08337B;font-weight:bold;letter-spacing:0.5px;'>VALIDADO POR FIRMADOC</span> "
-                "<span style='color:#696B6D;'>&middot; Cl&iacute;nica del Caribe</span>"
-                "</div>"
+            self._draw_institutional_bracket(
+                stamp_page, effective_w, effective_h, pad, arm_len, bracket_x, corner_r, stroke_width
             )
-            stamp_page.insert_htmlbox(top_rect, header_html, scale_low=0.5, overlay=True)
 
-            bottom_h = min(14.0, max(11.0, effective_h * 0.18))
-            bottom_y = effective_h - pad - bottom_h - 2.0
+            content_left = bracket_x + max(4.0, min(18.0, effective_w * 0.08))
+            content_right = effective_w - pad - max(1.0, min(4.0, effective_w * 0.02))
+            content_w = max(1.0, content_right - content_left)
 
-            div_shape = stamp_page.new_shape()
-            div_shape.draw_line(fitz.Point(content_left, bottom_y), fitz.Point(content_right, bottom_y))
-            div_shape.finish(color=(0.85, 0.85, 0.85), width=0.5)
-            div_shape.commit(overlay=True)
+            is_wide_flat = (effective_w >= 140.0) and (effective_h <= 35.0) and (effective_w / max(1.0, effective_h) >= 3.5)
 
-            code_rect = fitz.Rect(content_left, bottom_y + 1.0, content_right, effective_h - pad)
-            code_html = (
-                "<div style='margin:0;padding:0;font-family:Helvetica;font-size:6.5pt;line-height:1.1;text-align:left;'>"
-                "<span style='color:#696B6D;'>C&oacute;digo de verificaci&oacute;n: </span>"
-                f"<span style='font-family:Courier,monospace;font-weight:bold;color:#08337B;font-size:7pt;'>{verification_code}</span>"
-                "</div>"
-            )
-            stamp_page.insert_htmlbox(code_rect, code_html, scale_low=0.5, overlay=True)
-
-            sig_top = pad + top_h + 3.0
-            sig_bottom = bottom_y - 2.0
-            sig_h = sig_bottom - sig_top
-            if sig_h > 10 and content_w > 20:
-                sig_box = fitz.Rect(content_left, sig_top, content_right, sig_bottom)
+            if is_wide_flat:
+                # Layout lateral para marcos anchos y bajos
+                sig_col_w = min(content_w * 0.52, effective_h * 2.8)
+                sig_box = fitz.Rect(content_left, pad + 1.0, content_left + sig_col_w, effective_h - pad - 1.0)
                 with fitz.open(signature_image_path) as img_doc:
                     img_page = img_doc[0]
                     img_w = float(img_page.rect.width)
                     img_h = float(img_page.rect.height)
-                    scale = min(sig_box.width / img_w, sig_box.height / img_h)
-                    draw_w = img_w * scale
-                    draw_h = img_h * scale
-                    target_rect = fitz.Rect(
-                        sig_box.x0 + 4.0,
-                        sig_box.y0 + (sig_box.height - draw_h) / 2,
-                        sig_box.x0 + 4.0 + draw_w,
-                        sig_box.y0 + (sig_box.height - draw_h) / 2 + draw_h,
-                    )
-                    stamp_page.insert_image(
-                        target_rect,
-                        filename=str(signature_image_path),
-                        keep_proportion=True,
-                        overlay=True,
-                    )
+                    if img_w > 0 and img_h > 0 and sig_box.width > 0 and sig_box.height > 0:
+                        scale = min(sig_box.width / img_w, sig_box.height / img_h)
+                        draw_w = img_w * scale
+                        draw_h = img_h * scale
+                        target_x0 = sig_box.x0 + (sig_box.width - draw_w) / 2
+                        target_y0 = sig_box.y0 + (sig_box.height - draw_h) / 2
+                        target_rect = fitz.Rect(target_x0, target_y0, target_x0 + draw_w, target_y0 + draw_h)
+                        stamp_page.insert_image(
+                            target_rect,
+                            filename=str(signature_image_path),
+                            keep_proportion=True,
+                            overlay=True,
+                        )
+
+                div_x = content_left + sig_col_w + 2.0
+                div_shape = stamp_page.new_shape()
+                div_shape.draw_line(fitz.Point(div_x, pad + 2.0), fitz.Point(div_x, effective_h - pad - 2.0))
+                div_shape.finish(color=(0.85, 0.85, 0.85), width=0.5)
+                div_shape.commit(overlay=True)
+
+                text_left = div_x + 3.0
+                top_h = avail_h * 0.45
+                bottom_h = avail_h * 0.45
+
+                top_rect = fitz.Rect(text_left, pad + 1.0, content_right, pad + 1.0 + top_h)
+                header_font_size = max(3.5, min(6.5, top_h * 0.65))
+                header_html = (
+                    f"<div style='margin:0;padding:0;font-family:Helvetica;font-size:{header_font_size}pt;line-height:1;text-align:left;white-space:nowrap;'>"
+                    "<span style='color:#00AFEF;'>&#9679;</span> "
+                    "<span style='color:#08337B;font-weight:bold;'>VALIDADO POR FIRMADOC</span> "
+                    "<span style='color:#696B6D;'>&middot; Cl&iacute;nica del Caribe</span>"
+                    "</div>"
+                )
+                stamp_page.insert_htmlbox(top_rect, header_html, scale_low=0.1, overlay=True)
+
+                code_rect = fitz.Rect(text_left, effective_h - pad - bottom_h - 1.0, content_right, effective_h - pad - 1.0)
+                code_label_size = max(3.0, min(5.5, bottom_h * 0.55))
+                code_font_size = max(3.5, min(6.5, bottom_h * 0.65))
+                code_html = (
+                    f"<div style='margin:0;padding:0;font-family:Helvetica;font-size:{code_label_size}pt;line-height:1.1;text-align:left;white-space:nowrap;'>"
+                    "<span style='color:#696B6D;'>C&oacute;d: </span>"
+                    f"<span style='font-family:Courier,monospace;font-weight:bold;color:#08337B;font-size:{code_font_size}pt;'>{verification_code}</span>"
+                    "</div>"
+                )
+                stamp_page.insert_htmlbox(code_rect, code_html, scale_low=0.1, overlay=True)
+
+            else:
+                # Layout apilado adaptativo
+                show_divider = effective_h >= 35.0
+                top_h = max(3.5, min(11.0, avail_h * 0.20))
+                bottom_h = max(3.5, min(12.0, avail_h * 0.22))
+                gap = max(0.3, min(2.0, avail_h * 0.03)) if show_divider else 0.5
+
+                top_rect = fitz.Rect(content_left, pad + 1.0, content_right, pad + 1.0 + top_h)
+                header_font_size = max(3.0, min(6.5, top_h * 0.70))
+                dot_font_size = header_font_size + 0.5
+                header_html = (
+                    f"<div style='margin:0;padding:0;font-family:Helvetica;font-size:{header_font_size}pt;line-height:1;text-align:left;white-space:nowrap;'>"
+                    f"<span style='color:#00AFEF;font-size:{dot_font_size}pt;'>&#9679;</span> "
+                    "<span style='color:#08337B;font-weight:bold;letter-spacing:0.3px;'>VALIDADO POR FIRMADOC</span> "
+                    "<span style='color:#696B6D;'>&middot; Cl&iacute;nica del Caribe</span>"
+                    "</div>"
+                )
+                stamp_page.insert_htmlbox(top_rect, header_html, scale_low=0.1, overlay=True)
+
+                bottom_y = effective_h - pad - bottom_h - (gap if show_divider else 0.0)
+                if show_divider:
+                    div_shape = stamp_page.new_shape()
+                    div_shape.draw_line(fitz.Point(content_left, bottom_y), fitz.Point(content_right, bottom_y))
+                    div_shape.finish(color=(0.85, 0.85, 0.85), width=max(0.2, min(0.5, effective_h * 0.008)))
+                    div_shape.commit(overlay=True)
+
+                code_rect = fitz.Rect(content_left, bottom_y + (0.5 if show_divider else 0.0), content_right, effective_h - pad)
+                code_label_size = max(2.5, min(6.0, bottom_h * 0.55))
+                code_font_size = max(3.0, min(7.0, bottom_h * 0.65))
+                label_text = "C&oacute;digo de verificaci&oacute;n: " if content_w >= 110.0 else "C&oacute;d: "
+                code_html = (
+                    f"<div style='margin:0;padding:0;font-family:Helvetica;font-size:{code_label_size}pt;line-height:1.1;text-align:left;white-space:nowrap;'>"
+                    f"<span style='color:#696B6D;'>{label_text}</span>"
+                    f"<span style='font-family:Courier,monospace;font-weight:bold;color:#08337B;font-size:{code_font_size}pt;'>{verification_code}</span>"
+                    "</div>"
+                )
+                stamp_page.insert_htmlbox(code_rect, code_html, scale_low=0.1, overlay=True)
+
+                sig_top = pad + top_h + gap
+                sig_bottom = bottom_y - gap
+                sig_h = sig_bottom - sig_top
+                if sig_h > 0 and content_w > 0:
+                    sig_box = fitz.Rect(content_left, sig_top, content_right, sig_bottom)
+                    with fitz.open(signature_image_path) as img_doc:
+                        img_page = img_doc[0]
+                        img_w = float(img_page.rect.width)
+                        img_h = float(img_page.rect.height)
+                        if img_w > 0 and img_h > 0:
+                            scale = min(sig_box.width / img_w, sig_box.height / img_h)
+                            draw_w = img_w * scale
+                            draw_h = img_h * scale
+                            target_x0 = sig_box.x0 + (sig_box.width - draw_w) / 2
+                            target_y0 = sig_box.y0 + (sig_box.height - draw_h) / 2
+                            target_rect = fitz.Rect(target_x0, target_y0, target_x0 + draw_w, target_y0 + draw_h)
+                            stamp_page.insert_image(
+                                target_rect,
+                                filename=str(signature_image_path),
+                                keep_proportion=True,
+                                overlay=True,
+                            )
 
             page.show_pdf_page(box, stamp_doc, pno=0, rotate=effective_rotation)
         finally:
