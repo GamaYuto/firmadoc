@@ -565,3 +565,61 @@ test("firmadoc.css y firmadoc-theme.css aseguran visor util y scroll natural en 
   assert.match(css, /body:has\(\.manager-approval-layout\)[\s\S]*?overflow-y:\s*auto/);
   assert.match(themeCss, /body\.operational-body:has\(\.manager-approval-layout\)[\s\S]*?overflow-y:\s*auto/);
 });
+
+test("autorizar_gerencia incluye barra de lectura en voz alta con controles accesibles y sin modificar endpoints", () => {
+  const html = fs.readFileSync(path.join("..", "frontend", "templates", "autorizar_gerencia.html"), "utf8");
+  const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
+
+  const readAloudIds = [
+    "readAloudBar",
+    "readAloudPlayBtn",
+    "readAloudPauseBtn",
+    "readAloudStopBtn",
+    "readAloudStatus",
+    "readAloudPageIndicator",
+    "readAloudRateSelect",
+  ];
+  for (const id of readAloudIds) {
+    const regex = new RegExp(`id=["']${id}["']`, "g");
+    const matches = [...html.matchAll(regex)];
+    assert.equal(matches.length, 1, `El ID ${id} debe existir exactamente una vez en autorizar_gerencia.html`);
+  }
+
+  assert.match(html, /aria-live=["']polite["']/);
+  assert.match(html, /Utilice audífonos al consultar documentos confidenciales/);
+
+  assert.match(source, /import\s+\{[^}]*PdfReadAloud[^}]*\}\s+from\s+["']\.\/pdf-read-aloud\.js/);
+  assert.match(source, /stopAndCleanReader/);
+  assert.match(source, /speechSynthesis\.cancel/);
+});
+
+test("autorizar_gerencia deshabilita y limpia el lector ante autorizacion, rechazo o perdida de acceso", () => {
+  const html = fs.readFileSync(path.join("..", "frontend", "templates", "autorizar_gerencia.html"), "utf8");
+  const source = fs.readFileSync(path.join("static", "js", "autorizar_gerencia.js"), "utf8");
+
+  // Versionado estricto para evitar cache de estilos y scripts
+  assert.match(html, /href=["']\/static\/css\/firmadoc\.css\?v=17\.0["']/);
+  assert.match(html, /href=["']\/static\/css\/firmadoc-theme\.css\?v=17\.0["']/);
+  assert.match(html, /src=["']\/static\/js\/autorizar_gerencia\.js\?v=17\.1["']/);
+  assert.match(source, /import\s+\{[^}]*PdfReadAloud[^}]*\}\s+from\s+["']\.\/pdf-read-aloud\.js\?v=17\.1["']/);
+
+  // Implementación de disableAndCleanReader
+  assert.match(source, /function disableAndCleanReader\(\)\s*\{/);
+  assert.match(source, /pdfReader\.dispose\(\)/);
+  assert.match(source, /readAloudBar\.hidden = true/);
+  assert.match(source, /readAloudPlayBtn\.disabled = true/);
+
+  // Invocación ante resolución de solicitud
+  assert.match(source, /function hideApprovalActions\(\)\s*\{[\s\S]*?disableAndCleanReader\(\)/);
+  assert.match(source, /async function loadSignedPreview\([^)]*\)\s*\{[\s\S]*?disableAndCleanReader\(\)/);
+  assert.match(source, /function showCompleted\([^)]*\)\s*\{[\s\S]*?disableAndCleanReader\(\)/);
+
+  // Detención inmediata ante clic en autorizar o rechazar
+  assert.match(source, /authorizeButton\.addEventListener\("click",\s*async\s*\(\)\s*=>\s*\{[\s\S]*?stopAndCleanReader\(\)/);
+  assert.match(source, /rejectButton\.addEventListener\("click",\s*async\s*\(\)\s*=>\s*\{[\s\S]*?stopAndCleanReader\(\)/);
+
+  // Limpieza ante descarga o abandono de página
+  assert.match(source, /window\.addEventListener\("beforeunload",\s*\(\)\s*=>\s*\{[\s\S]*?disableAndCleanReader\(\)/);
+  assert.match(source, /window\.addEventListener\("pagehide",\s*\(\)\s*=>\s*\{[\s\S]*?disableAndCleanReader\(\)/);
+});
+
