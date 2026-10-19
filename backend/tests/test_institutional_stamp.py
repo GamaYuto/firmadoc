@@ -276,12 +276,14 @@ def test_lblanco_approval_generates_new_stamp_with_verification_code(db_session,
             assert "VALIDADO POR FIRMADOC" in plain_text
             assert "Clinica del Caribe" in plain_text
             assert expected_code in plain_text
-            assert "Codigo de verificacion:" in plain_text
 
-            # Must NOT contain obsolete text labels
+            # Must NOT contain obsolete text labels (el codigo se presenta
+            # dentro de un chip visual, sin etiqueta de texto adicional)
             assert "ID: " not in text
             assert "SHA: " not in text
             assert "Autorizado electrónicamente" not in text
+            assert "Codigo de verificacion" not in plain_text
+            assert "Cod:" not in plain_text
 
             # Must contain the signature image
             images = page.get_images(full=True)
