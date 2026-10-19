@@ -528,7 +528,11 @@ class ManagerApprovalService:
             session.fecusa = datetime.now(timezone.utc)
             create_evento_tx(
                 db, "GER_AUT", "FIRMA", signature.firid, signature.docid, actor_user, ip,
-                "Documento autorizado electronicamente por Gerencia",
+                (
+                    f"Documento autorizado electronicamente por Gerencia. "
+                    f"tipo=ELECTRONICA usuario={actor_user} evidencia={str(signature.opeid).replace('-', '')[:12]} "
+                    f"hasori={signature.hasori} hasfin={signature.hasfin}"
+                ),
             )
             db.commit()
             return frontend_signature_service._build_result(
