@@ -369,6 +369,18 @@ class PdfSignatureService:
                 return candidate
         raise SignaturePayloadError("Imagen de firma institucional no disponible")
 
+    @staticmethod
+    def _lerp_color(c1: tuple[float, float, float], c2: tuple[float, float, float], t: float) -> tuple[float, float, float]:
+        t = max(0.0, min(1.0, t))
+        return tuple(c1[i] + (c2[i] - c1[i]) * t for i in range(3))
+
+    @staticmethod
+    def _cubic_bezier_point(p0: fitz.Point, p1: fitz.Point, p2: fitz.Point, p3: fitz.Point, t: float) -> fitz.Point:
+        mt = 1.0 - t
+        x = mt ** 3 * p0.x + 3 * mt ** 2 * t * p1.x + 3 * mt * t ** 2 * p2.x + t ** 3 * p3.x
+        y = mt ** 3 * p0.y + 3 * mt ** 2 * t * p1.y + 3 * mt * t ** 2 * p2.y + t ** 3 * p3.y
+        return fitz.Point(x, y)
+
     def _draw_institutional_bracket(
         self,
         stamp_page: fitz.Page,
@@ -380,27 +392,91 @@ class PdfSignatureService:
         corner_r: float,
         stroke_width: float = 1.6,
     ) -> None:
-        cyan = (0.0, 0.686, 0.937)  # #00AFEF
+        # Degradado vertical cyan (#00AFEF) -> azul institucional (#08337B),
+        # replicando el linearGradient del componente de diseno oficial.
+        cyan = (0.0, 0.686, 0.937)
+        navy = (0.031, 0.200, 0.482)
         safe_h = max(h - 2 * pad, 0.1)
         safe_r = min(corner_r, safe_h / 2.1, arm_len / 1.5)
-        shape = stamp_page.new_shape()
-        shape.draw_line(fitz.Point(bracket_x + arm_len, pad), fitz.Point(bracket_x + safe_r, pad))
-        shape.draw_bezier(
-            fitz.Point(bracket_x + safe_r, pad),
-            fitz.Point(bracket_x, pad),
-            fitz.Point(bracket_x, pad + safe_r),
-            fitz.Point(bracket_x, pad + safe_r),
+        gradient_span = max(h - 2 * pad, 0.1)
+
+        segments: list[tuple[fitz.Point, fitz.Point]] = []
+
+        def add_line(p0: fitz.Point, p1: fitz.Point, steps: int = 1) -> None:
+            steps = max(1, steps)
+            for i in range(steps):
+                t0 = i / steps
+                t1 = (i + 1) / steps
+                segments.append((
+                    fitz.Point(p0.x + (p1.x - p0.x) * t0, p0.y + (p1.y - p0.y) * t0),
+                    fitz.Point(p0.x + (p1.x - p0.x) * t1, p0.y + (p1.y - p0.y) * t1),
+                ))
+
+        def add_bezier(p0: fitz.Point, p1: fitz.Point, p2: fitz.Point, p3: fitz.Point, steps: int = 8) -> None:
+            prev = p0
+            for i in range(1, steps + 1):
+                point = self._cubic_bezier_point(p0, p1, p2, p3, i / steps)
+                segments.append((prev, point))
+                prev = point
+
+        top_right = fitz.Point(bracket_x + arm_len, pad)
+        top_corner_start = fitz.Point(bracket_x + safe_r, pad)
+        top_corner_c1 = fitz.Point(bracket_x, pad)
+        top_corner_end = fitz.Point(bracket_x, pad + safe_r)
+        bottom_corner_start = fitz.Point(bracket_x, h - pad - safe_r)
+        bottom_corner_c1 = fitz.Point(bracket_x, h - pad)
+        bottom_corner_end = fitz.Point(bracket_x + safe_r, h - pad)
+        bottom_right = fitz.Point(bracket_x + arm_len, h - pad)
+
+        add_line(top_right, top_corner_start, steps=2)
+        add_bezier(top_corner_start, top_corner_c1, top_corner_end, top_corner_end, steps=8)
+        add_line(top_corner_end, bottom_corner_start, steps=max(2, int(safe_h / 3)))
+        add_bezier(bottom_corner_start, bottom_corner_c1, bottom_corner_end, bottom_corner_end, steps=8)
+        add_line(bottom_corner_end, bottom_right, steps=2)
+
+        for p0, p1 in segments:
+            mid_y = (p0.y + p1.y) / 2
+            t = (mid_y - pad) / gradient_span
+            color = self._lerp_color(cyan, navy, t)
+            shape = stamp_page.new_shape()
+            shape.draw_line(p0, p1)
+            shape.finish(color=color, width=stroke_width, lineCap=1, lineJoin=1)
+            shape.commit(overlay=True)
+
+    def _draw_verification_code_chip(
+        self,
+        stamp_page: fitz.Page,
+        rect: fitz.Rect,
+        verification_code: str,
+        font_size: float,
+    ) -> None:
+        # Caja clara tipo "chip" alrededor del codigo (sin etiqueta de texto),
+        # replicando el componente de diseno oficial del sello.
+        chip_fill = (0.973, 0.980, 0.988)  # #F8FAFC (slate-50)
+        chip_border = (0.945, 0.961, 0.976)  # #F1F5F9 (slate-100)
+        pad_x = max(1.0, font_size * 0.35)
+        pad_y = max(0.5, min(rect.height * 0.15, font_size * 0.25))
+        estimated_text_width = font_size * 0.62 * len(verification_code)
+        chip_width = max(1.0, min(rect.width, estimated_text_width + 2 * pad_x))
+        chip_height = max(1.0, min(rect.height, font_size * 1.5 + 2 * pad_y))
+        chip_y0 = rect.y0 + max(0.0, (rect.height - chip_height) / 2)
+        chip_rect = fitz.Rect(rect.x0, chip_y0, rect.x0 + chip_width, chip_y0 + chip_height)
+
+        stamp_page.draw_rect(
+            chip_rect,
+            color=chip_border,
+            fill=chip_fill,
+            width=max(0.25, font_size * 0.035),
+            radius=0.18,
+            overlay=True,
         )
-        shape.draw_line(fitz.Point(bracket_x, pad + safe_r), fitz.Point(bracket_x, h - pad - safe_r))
-        shape.draw_bezier(
-            fitz.Point(bracket_x, h - pad - safe_r),
-            fitz.Point(bracket_x, h - pad),
-            fitz.Point(bracket_x + safe_r, h - pad),
-            fitz.Point(bracket_x + safe_r, h - pad),
+        code_html = (
+            "<div style='margin:0;padding:0;font-family:Courier,monospace;font-weight:bold;"
+            f"color:#08337B;font-size:{font_size}pt;line-height:1.1;text-align:left;white-space:nowrap;'>"
+            f"{html.escape(verification_code)}</div>"
         )
-        shape.draw_line(fitz.Point(bracket_x + safe_r, h - pad), fitz.Point(bracket_x + arm_len, h - pad))
-        shape.finish(color=cyan, width=stroke_width)
-        shape.commit(overlay=True)
+        text_rect = fitz.Rect(chip_rect.x0 + pad_x, chip_rect.y0, chip_rect.x1 - pad_x * 0.3, chip_rect.y1)
+        stamp_page.insert_htmlbox(text_rect, code_html, scale_low=0.1, overlay=True)
 
     def _render_institutional_stamp(
         self,
@@ -490,15 +566,8 @@ class PdfSignatureService:
                 stamp_page.insert_htmlbox(top_rect, header_html, scale_low=0.1, overlay=True)
 
                 code_rect = fitz.Rect(text_left, effective_h - pad - bottom_h - 1.0, content_right, effective_h - pad - 1.0)
-                code_label_size = max(3.0, min(5.5, bottom_h * 0.55))
                 code_font_size = max(3.5, min(6.5, bottom_h * 0.65))
-                code_html = (
-                    f"<div style='margin:0;padding:0;font-family:Helvetica;font-size:{code_label_size}pt;line-height:1.1;text-align:left;white-space:nowrap;'>"
-                    "<span style='color:#696B6D;'>C&oacute;d: </span>"
-                    f"<span style='font-family:Courier,monospace;font-weight:bold;color:#08337B;font-size:{code_font_size}pt;'>{verification_code}</span>"
-                    "</div>"
-                )
-                stamp_page.insert_htmlbox(code_rect, code_html, scale_low=0.1, overlay=True)
+                self._draw_verification_code_chip(stamp_page, code_rect, verification_code, code_font_size)
 
             else:
                 # Layout apilado adaptativo
@@ -527,16 +596,8 @@ class PdfSignatureService:
                     div_shape.commit(overlay=True)
 
                 code_rect = fitz.Rect(content_left, bottom_y + (0.5 if show_divider else 0.0), content_right, effective_h - pad)
-                code_label_size = max(2.5, min(6.0, bottom_h * 0.55))
                 code_font_size = max(3.0, min(7.0, bottom_h * 0.65))
-                label_text = "C&oacute;digo de verificaci&oacute;n: " if content_w >= 110.0 else "C&oacute;d: "
-                code_html = (
-                    f"<div style='margin:0;padding:0;font-family:Helvetica;font-size:{code_label_size}pt;line-height:1.1;text-align:left;white-space:nowrap;'>"
-                    f"<span style='color:#696B6D;'>{label_text}</span>"
-                    f"<span style='font-family:Courier,monospace;font-weight:bold;color:#08337B;font-size:{code_font_size}pt;'>{verification_code}</span>"
-                    "</div>"
-                )
-                stamp_page.insert_htmlbox(code_rect, code_html, scale_low=0.1, overlay=True)
+                self._draw_verification_code_chip(stamp_page, code_rect, verification_code, code_font_size)
 
                 sig_top = pad + top_h + gap
                 sig_bottom = bottom_y - gap
