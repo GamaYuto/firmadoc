@@ -156,8 +156,8 @@ body {
   border: 2px solid var(--fd-cyan);
   background: rgba(0, 175, 239, 0.12);
   color: #07315F;
-  min-width: 16px;
-  min-height: 12px;
+  min-width: 32px;
+  min-height: 24px;
   padding: 0;
   cursor: move;
   overflow: hidden;
@@ -166,13 +166,10 @@ body {
 
 .signature-box span {
   display: block;
-  padding: 2px 4px;
-  font-size: 11px;
+  padding: 3px 5px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   pointer-events: none;
 }
 
