@@ -612,7 +612,8 @@ class PdfSignatureService:
                             scale = min(sig_box.width / img_w, sig_box.height / img_h)
                             draw_w = img_w * scale
                             draw_h = img_h * scale
-                            target_x0 = sig_box.x0 + (sig_box.width - draw_w) / 2
+                            # Alineado a la izquierda (igual que el encabezado), no centrado.
+                            target_x0 = sig_box.x0
                             target_y0 = sig_box.y0 + (sig_box.height - draw_h) / 2
                             target_rect = fitz.Rect(target_x0, target_y0, target_x0 + draw_w, target_y0 + draw_h)
                             stamp_page.insert_image(
