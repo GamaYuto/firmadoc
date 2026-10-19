@@ -740,7 +740,10 @@ def test_cierre_local_pendiente_publicacion_y_resultado_pdf(client, db_session, 
     assert [firma.estado for firma in firmas] == [EstadoDocFirma.COMPLETADA.value, EstadoDocFirma.COMPLETADA.value]
 
 
-def test_publicar_alfresco_rechaza_firmante_y_bloquea_preparador(client, alfresco_mock, monkeypatch):
+def test_publicar_alfresco_permite_firmante_y_preparador_bloquea_ajeno(client, alfresco_mock, monkeypatch):
+    # El firmante es participante del paso de firma, y la autorizacion de
+    # publicacion ahora incluye al creador, participantes, gerencia y quien
+    # genero la firma (ver alfresco_service._load_document_publication_snapshot).
     monkeypatch.setattr(firma_frontend_api.settings, "FIRMADOC_ALFRESCO_WRITE_ENABLED", False)
     _prep, _saved, sent = _prepare_save_send(client, alfresco_mock["node_id"], tipfir="INTERNA", signer="firmante")
     signed = client.post(
@@ -749,7 +752,7 @@ def test_publicar_alfresco_rechaza_firmante_y_bloquea_preparador(client, alfresc
         headers={"X-FirmaDoc-User": "firmante"},
     )
     assert signed.status_code == 200, signed.text
-    assert signed.json()["can_publish_alfresco"] is False
+    assert signed.json()["can_publish_alfresco"] is True
 
     preparador_result = client.get(
         f"/api/firma/firmas/{sent['firid']}/resultado",
@@ -761,7 +764,7 @@ def test_publicar_alfresco_rechaza_firmante_y_bloquea_preparador(client, alfresc
 
     class FakePublicationService:
         def publish_document(self, db, docid, actor_user, iporig=None, user_agent=None):
-            if actor_user == "firmante":
+            if actor_user == "usuario_ajeno":
                 from app.services.signature_exceptions import SignaturePublicationError
 
                 raise SignaturePublicationError(
@@ -776,19 +779,26 @@ def test_publicar_alfresco_rechaza_firmante_y_bloquea_preparador(client, alfresc
 
     forbidden = client.post(
         f"/api/firma/documentos/{sent['docid']}/publicar",
-        headers={"X-FirmaDoc-User": "firmante"},
+        headers={"X-FirmaDoc-User": "usuario_ajeno"},
     )
     assert forbidden.status_code == 403
     assert forbidden.json()["detail"]["code"] == "PUBLICATION_FORBIDDEN"
 
-    blocked = client.post(
+    blocked_firmante = client.post(
+        f"/api/firma/documentos/{sent['docid']}/publicar",
+        headers={"X-FirmaDoc-User": "firmante"},
+    )
+    assert blocked_firmante.status_code == 409
+    assert blocked_firmante.json()["detail"]["code"] == "ALFRESCO_WRITE_DISABLED"
+
+    blocked_preparador = client.post(
         f"/api/firma/documentos/{sent['docid']}/publicar",
         headers={"X-FirmaDoc-User": "preparador"},
     )
-    assert blocked.status_code == 409
-    assert blocked.json()["detail"]["code"] == "ALFRESCO_WRITE_DISABLED"
-    assert "C:\\\\" not in blocked.text
-    assert "lab_password" not in blocked.text
+    assert blocked_preparador.status_code == 409
+    assert blocked_preparador.json()["detail"]["code"] == "ALFRESCO_WRITE_DISABLED"
+    assert "C:\\\\" not in blocked_preparador.text
+    assert "lab_password" not in blocked_preparador.text
 
 
 def test_firma_secuencial_reusa_acumulado_y_conserva_ambas_firmas(client, alfresco_mock, isolated_artifacts, monkeypatch):

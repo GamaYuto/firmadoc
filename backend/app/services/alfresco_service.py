@@ -837,7 +837,23 @@ class AlfrescoService:
         doc = db.scalars(select(DocFir).where(DocFir.docid == docid)).first()
         if not doc:
             raise SignatureNotFoundError("Documento no encontrado")
-        if user != (doc.usrcre or "").strip().lower():
+        # Usuarios autorizados para publicar: creador, creador de firma, participantes o gerencia
+        allowed_users = {(doc.usrcre or "").strip().lower()}
+        if settings.FIRMADOC_GERENCIA_USER_ID:
+            allowed_users.add(settings.FIRMADOC_GERENCIA_USER_ID.strip().lower())
+        part_users = db.scalars(
+            select(DocPart.usrid)
+            .join(DocPaso, DocPaso.dpasid == DocPart.dpasid)
+            .where(DocPaso.docid == doc.docid)
+        ).all()
+        allowed_users.update((p or "").strip().lower() for p in part_users if p)
+
+        firma_creators = db.scalars(
+            select(DocFirma.usrcre).where(DocFirma.docid == doc.docid)
+        ).all()
+        allowed_users.update((f or "").strip().lower() for f in firma_creators if f)
+
+        if user not in allowed_users:
             raise SignaturePublicationError(
                 "No autorizado para publicar este documento",
                 code="PUBLICATION_FORBIDDEN",

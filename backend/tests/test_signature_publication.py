@@ -14,6 +14,7 @@ try:
 except ImportError:  # pragma: no cover
     import fitz  # type: ignore[no-redef]
 
+from app.core.config import settings
 from app.core.identity import IdentitySnapshot
 from app.crud.crud_docfir import create_documento
 from app.models.audifir import Audifir
@@ -554,6 +555,47 @@ def test_publish_document_rejects_unauthorized_actor(db_session, tmp_path):
 
     assert excinfo.value.status_code == 403
     assert excinfo.value.code == "PUBLICATION_FORBIDDEN"
+
+
+def test_publish_document_allows_participant_actor(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    _mark_context_pending_publication(db_session, context)
+    service = _publication_service(context["temp_service"], context["node_id"])
+
+    snapshot = service._load_document_publication_snapshot(
+        db_session, context["doc"].docid, context["part"].usrid, "127.0.0.1", "pytest"
+    )
+
+    assert snapshot.docid == context["doc"].docid
+
+
+def test_publish_document_allows_gerencia_actor(db_session, tmp_path, monkeypatch):
+    context = _seed_publication_context(db_session, tmp_path)
+    _mark_context_pending_publication(db_session, context)
+    monkeypatch.setattr(settings, "FIRMADOC_GERENCIA_USER_ID", "gerente_publicacion")
+    service = _publication_service(context["temp_service"], context["node_id"])
+
+    snapshot = service._load_document_publication_snapshot(
+        db_session, context["doc"].docid, "gerente_publicacion", "127.0.0.1", "pytest"
+    )
+
+    assert snapshot.docid == context["doc"].docid
+
+
+def test_publish_document_allows_signature_creator_actor(db_session, tmp_path):
+    context = _seed_publication_context(db_session, tmp_path)
+    _mark_context_pending_publication(db_session, context)
+    firma = db_session.get(DocFirma, context["firma"].firid)
+    assert firma is not None
+    firma.usrcre = "asistente_firma"
+    db_session.commit()
+    service = _publication_service(context["temp_service"], context["node_id"])
+
+    snapshot = service._load_document_publication_snapshot(
+        db_session, context["doc"].docid, "asistente_firma", "127.0.0.1", "pytest"
+    )
+
+    assert snapshot.docid == context["doc"].docid
 
 
 def test_publish_document_missing_artifact_returns_410(db_session, tmp_path):

@@ -969,14 +969,31 @@ class FrontendSignatureService:
         if actor_user.strip().lower() != participant.usrid:
             raise HTTPException(status_code=403, detail="No puede actuar por otro firmante")
 
-    def _is_publication_actor(self, actor_user: str, doc: DocFir) -> bool:
-        return actor_user.strip().lower() == (doc.usrcre or "").strip().lower()
+    def _is_publication_actor(
+        self,
+        actor_user: str,
+        doc: DocFir,
+        firma: DocFirma | None = None,
+        participant: DocPart | None = None,
+    ) -> bool:
+        if not actor_user:
+            return False
+        norm = actor_user.strip().lower()
+        if norm == (doc.usrcre or "").strip().lower():
+            return True
+        if firma is not None and norm == (firma.usrcre or "").strip().lower():
+            return True
+        if participant is not None and norm == (participant.usrid or "").strip().lower():
+            return True
+        if settings.FIRMADOC_GERENCIA_USER_ID and norm == settings.FIRMADOC_GERENCIA_USER_ID.strip().lower():
+            return True
+        return False
 
     def _assert_signature_viewer(self, actor_user: str, participant: DocPart, doc: DocFir, firma: DocFirma) -> None:
         user = actor_user.strip().lower()
-        if user == participant.usrid:
+        if user == (participant.usrid or "").strip().lower():
             return
-        if self._is_publication_actor(user, doc):
+        if self._is_publication_actor(user, doc, firma, participant):
             return
         raise HTTPException(status_code=403, detail="No puede consultar esta firma")
 
@@ -1029,9 +1046,9 @@ class FrontendSignatureService:
         return temporary_artifact_service.write_bytes(raw, prefix="firma-ui-", suffix=".png")
 
     def _build_result(self, db: Session, firid: int, message: str, actor_user: str | None = None) -> SignatureResult:
-        firma, _participant, step, doc = self._get_signature_context(db, firid)
+        firma, participant, step, doc = self._get_signature_context(db, firid)
         participants = db.scalars(select(DocPart).where(DocPart.dpasid == step.dpasid)).all()
-        completed_signatures = sum(1 for participant in participants if participant.estado == "COMPLETADO")
+        completed_signatures = sum(1 for p in participants if p.estado == "COMPLETADO")
         if doc.estado == EstadoDoc.COMPLETADO.value:
             publication = "PUBLISHED"
         elif doc.estado == EstadoDoc.PENDIENTE_PUBLICACION.value:
@@ -1057,7 +1074,7 @@ class FrontendSignatureService:
             can_publish_alfresco=(
                 actor_user is not None
                 and doc.estado == EstadoDoc.PENDIENTE_PUBLICACION.value
-                and self._is_publication_actor(actor_user, doc)
+                and self._is_publication_actor(actor_user, doc, firma, participant)
             ),
             message=message,
         )
