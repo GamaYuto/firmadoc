@@ -66,19 +66,11 @@ function hideAllPanels() {
   if (sessionContent)      sessionContent.hidden      = true;
 }
 
-function showNoSession(signerName = "", assignedUser = "") {
+function showNoSession(assignedSigner = "") {
   hideAllPanels();
   if (noSessionAssignedLabel) {
-    noSessionAssignedLabel.textContent = signerName || assignedUser || "—";
-  }
-  if (noSessionUserLabel) {
-    if (assignedUser) {
-      noSessionUserLabel.textContent = `Usuario: ${assignedUser}`;
-      noSessionUserLabel.hidden = false;
-    } else {
-      noSessionUserLabel.textContent = "";
-      noSessionUserLabel.hidden = true;
-    }
+    // Muestra el nombre completo si llega del body del error, si no el usuario
+    noSessionAssignedLabel.textContent = assignedSigner || "—";
   }
   if (authNoSessionNotice) authNoSessionNotice.hidden = false;
 }
@@ -143,16 +135,12 @@ async function loadSession() {
     // apiFetch lanza ApiError con err.status === 401.
     // NO se muestra error generico; se muestra el panel NO_SESSION.
     if (err instanceof ApiError && err.status === 401) {
-      let assigned = "";
-      let signerName = "";
-      if (typeof err.detail === "object" && err.detail !== null) {
-        assigned = err.detail.assigned_signer || "";
-        signerName = err.detail.signer_name || assigned;
-      } else if (typeof err.detail === "string") {
-        assigned = "";
-        signerName = "";
-      }
-      showNoSession(signerName, assigned);
+      // El backend 401 no incluye assigned_signer en el cuerpo porque get_current_principal
+      // falla antes de leer la sesion. Mostramos el panel sin nombre (sera llenado con "—").
+      const assignedFromErr =
+        (typeof err.detail === "object" && err.detail?.assigned_signer) ||
+        (typeof err.detail === "string" ? "" : "");
+      showNoSession(assignedFromErr);
       return;   // <-- retorno limpio; sin relanzar; sin reintento automatico
     }
     // ---- Cualquier otro error (red, 500, etc.) ----
@@ -175,7 +163,8 @@ async function loadSession() {
     initPad();
   } else {
     // Caso C: sesion de otro usuario (MISMATCH)
-    const currentUser = data.current_user || data._current_user || "";
+    // mismatchCurrentLabel lo llenara el servidor si expone el campo; si no, queda "-"
+    const currentUser = data._current_user || "";
     showMismatch(assigned, currentUser);
   }
 }

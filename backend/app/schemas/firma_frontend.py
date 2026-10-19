@@ -232,7 +232,6 @@ class MobileSessionDetail(BaseModel):
     #   "NO_SESSION" -> no hay sesion activa en el dispositivo (401 previo)
     session_state: str = "MATCH"
     prepared_by: str = ""         # usuario que preparo/genero el QR (informativo)
-    current_user: str = ""        # usuario autenticado en la sesion actual
 
 
 class MobileSignatureConfirm(BaseModel):
